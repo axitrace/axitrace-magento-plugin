@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<!--
+    Consumer registration.
+
+    `axitrace_order_consumer` is the CLI consumer name surfaced in
+    `bin/magento queue:consumers:list`. The crontab.xml job invokes it every
+    minute with the max-messages cap and single-thread flag so a stuck
+    consumer cannot accumulate; `onlySpawnWhenMessageAvailable` keeps it
+    lazy when the queue is empty.
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework-message-queue:etc/consumer.xsd">
+
+    <consumer name="axitrace_order_consumer"
+              queue="axitrace.order.placed"
+              connection="db"
+              consumerInstance="Magento\Framework\MessageQueue\Consumer"
+              handler="AxiTrace\Tracking\Model\Queue\OrderEventConsumer::process"
+              maxMessages="100"
+              maxIdleTime="30"
+              sleep="1"
+              onlySpawnWhenMessageAvailable="1"/>
+
+</config>

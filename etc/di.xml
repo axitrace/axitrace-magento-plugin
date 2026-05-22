@@ -1,0 +1,64 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
+
+    <!--
+        Dedicated logger writing to var/log/axitrace.log so module diagnostics
+        do not get drowned in the global Magento system log.
+    -->
+    <virtualType name="AxiTrace\Tracking\Logger\Handler" type="Magento\Framework\Logger\Handler\Base">
+        <arguments>
+            <argument name="fileName" xsi:type="string">/var/log/axitrace.log</argument>
+        </arguments>
+    </virtualType>
+
+    <virtualType name="AxiTrace\Tracking\Logger\Logger" type="Monolog\Logger">
+        <arguments>
+            <argument name="name" xsi:type="string">axitrace</argument>
+            <argument name="handlers" xsi:type="array">
+                <item name="system" xsi:type="object">AxiTrace\Tracking\Logger\Handler</item>
+            </argument>
+        </arguments>
+    </virtualType>
+
+    <!--
+        Inject the dedicated logger into module services that need it.
+    -->
+    <type name="AxiTrace\Tracking\Observer\OrderStateTransitionObserver">
+        <arguments>
+            <argument name="logger" xsi:type="object">AxiTrace\Tracking\Logger\Logger</argument>
+        </arguments>
+    </type>
+
+    <type name="AxiTrace\Tracking\Model\Queue\OrderEventConsumer">
+        <arguments>
+            <argument name="logger" xsi:type="object">AxiTrace\Tracking\Logger\Logger</argument>
+        </arguments>
+    </type>
+
+    <type name="AxiTrace\Tracking\Model\HttpClient\IngestionApiClient">
+        <arguments>
+            <argument name="logger" xsi:type="object">AxiTrace\Tracking\Logger\Logger</argument>
+        </arguments>
+    </type>
+
+    <!--
+        Repository binding for the EventLog entity.
+    -->
+    <preference for="AxiTrace\Tracking\Api\EventLogRepositoryInterface"
+                type="AxiTrace\Tracking\Model\EventLog\EventLogRepository"/>
+
+    <!--
+        Wires the `axitrace:retry-failed` CLI command into bin/magento.
+        Magento's command auto-discovery is via CommandListInterface array —
+        cli_commands.xml is not used by core Magento.
+    -->
+    <type name="Magento\Framework\Console\CommandListInterface">
+        <arguments>
+            <argument name="commands" xsi:type="array">
+                <item name="axitraceRetryFailed" xsi:type="object">AxiTrace\Tracking\Console\Command\RetryFailedEventsCommand</item>
+            </argument>
+        </arguments>
+    </type>
+
+</config>

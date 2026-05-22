@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<!--
+    Module crontab entries.
+
+    `axitrace_consumer_runner` (every minute) spawns the consumer briefly with
+    a 100-message cap so it processes the queue and exits — Magento cron then
+    relaunches on the next tick. This is the standard cron-driven consumer
+    pattern recommended for installs without a supervisor.
+
+    `axitrace_retry_failed` (every 15 minutes) re-publishes failed events
+    (status=failed, attempts<5) into the queue. Failures past 5 attempts are
+    left as-is; the admin StatusIndicator surfaces them as a red dot.
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Cron:etc/crontab.xsd">
+
+    <group id="default">
+        <job name="axitrace_consumer_runner"
+             instance="Magento\MessageQueue\Model\Cron\ConsumersRunner"
+             method="run">
+            <schedule>* * * * *</schedule>
+        </job>
+
+        <job name="axitrace_retry_failed"
+             instance="AxiTrace\Tracking\Model\EventLog\RetryFailedScheduler"
+             method="execute">
+            <schedule>*/15 * * * *</schedule>
+        </job>
+    </group>
+
+</config>

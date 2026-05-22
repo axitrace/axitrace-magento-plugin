@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<!--
+    Publisher binding for axitrace.order.placed.
+
+    Uses the `db` connection (Magento's MySQL transport) which works on every
+    Magento install without AMQP infrastructure. Merchants on RabbitMQ can
+    override this binding in their env.php; nothing else needs to change.
+
+    MysqlMq has a known silent-drop bug (magento/magento2#18140); the module
+    compensates with the axitrace_event_log idempotency table and a 15-minute
+    retry cron (etc/crontab.xml).
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework-message-queue:etc/publisher.xsd">
+
+    <publisher topic="axitrace.order.placed">
+        <connection name="db" exchange="magento"/>
+    </publisher>
+
+</config>

@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<!--
+    Exchange + binding topology for axitrace.order.placed.
+
+    Exchange `magento` is the default Magento topic exchange on the db connection.
+    Binding routes axitrace.order.placed onto the queue of the same name.
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework-message-queue:etc/topology.xsd">
+
+    <exchange name="magento" type="topic" connection="db">
+        <binding id="axitraceOrderPlacedBinding"
+                 topic="axitrace.order.placed"
+                 destinationType="queue"
+                 destination="axitrace.order.placed"/>
+    </exchange>
+
+</config>
