@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<!--
+    Default frontend layout: injects the AxiTrace pixel into every storefront page.
+
+    Block uses `before.body.end` so the SDK script tag sits just before </body>,
+    matching established marketing-pixel placement (Google Tag, Facebook Pixel,
+    Klaviyo). The actual SDK fetch is deferred (`<script defer>`) inside the
+    template so it does not block first paint.
+-->
+<page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
+    <body>
+        <referenceContainer name="before.body.end">
+            <block class="AxiTrace\Tracking\Block\Pixel"
+                   name="axitrace.pixel"
+                   template="AxiTrace_Tracking::pixel.phtml"
+                   ifconfig="axitrace/general/enabled">
+                <arguments>
+                    <argument name="view_model" xsi:type="object">AxiTrace\Tracking\ViewModel\StorefrontConfig</argument>
+                </arguments>
+            </block>
+        </referenceContainer>
+    </body>
+</page>

@@ -1,0 +1,76 @@
+services:
+  # ---------------------------------------------------------------------
+  # Magento application — built on top of Markshust/docker-magento images.
+  # We pin to PHP 8.2 + Magento 2.4.7 by default; the matrix CI workflow
+  # overrides with -f overlay files for other PHP versions.
+  # ---------------------------------------------------------------------
+  magento:
+    image: markoshust/magento-nginx:1.24-0
+    ports:
+      - "8080:8080"
+      - "8443:8443"
+    volumes:
+      - magento-data:/var/www/html
+      - ../..:/var/www/html/app/code/AxiTrace:cached
+    depends_on:
+      - php
+      - db
+      - opensearch
+      - redis
+    environment:
+      - VIRTUAL_HOST=magento.test
+
+  php:
+    image: markoshust/magento-php:8.2-fpm-3
+    volumes:
+      - magento-data:/var/www/html
+      - ../..:/var/www/html/app/code/AxiTrace:cached
+    depends_on:
+      - db
+      - opensearch
+      - redis
+    environment:
+      - COMPOSER_MEMORY_LIMIT=-1
+
+  db:
+    image: mariadb:10.6
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=magento
+      - MYSQL_DATABASE=magento
+      - MYSQL_USER=magento
+      - MYSQL_PASSWORD=magento
+    volumes:
+      - db-data:/var/lib/mysql
+
+  opensearch:
+    image: markoshust/magento-opensearch:2.12-0
+    ports:
+      - "9200:9200"
+    environment:
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - DISABLE_SECURITY_PLUGIN=true
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+
+  redis:
+    image: redis:7.2-alpine
+    ports:
+      - "6379:6379"
+
+  # ---------------------------------------------------------------------
+  # Mock AxiTrace ingestion endpoint — captures POSTs from the Magento
+  # module so E2E tests can assert payload shape without round-tripping
+  # production. Listens on http://ingestion-mock:9999/magento/pixel.
+  # ---------------------------------------------------------------------
+  ingestion-mock:
+    build:
+      context: ./mock-ingestion
+      dockerfile: Dockerfile
+    ports:
+      - "9999:9999"
+
+volumes:
+  magento-data:
+  db-data:

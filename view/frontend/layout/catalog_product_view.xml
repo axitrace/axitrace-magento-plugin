@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<!--
+    PDP: exposes ProductContext via a small in-page block so pixel.phtml can
+    read the current product (avoids duplicating product lookup logic).
+-->
+<page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
+    <body>
+        <referenceBlock name="axitrace.pixel">
+            <arguments>
+                <argument name="product_view_model" xsi:type="object">AxiTrace\Tracking\ViewModel\ProductContext</argument>
+            </arguments>
+        </referenceBlock>
+    </body>
+</page>

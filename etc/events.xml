@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<!--
+    Global-area event subscriptions.
+
+    sales_order_save_after fires once per Magento order persistence, in BOTH the
+    admin and frontend areas. We subscribe ONLY here (not sales_order_place_after,
+    which fires before the order has a DB id; and not checkout_submit_all_after,
+    which is skipped by some third-party checkouts). The observer applies a state
+    transition gate so it acts at most once per order lifecycle.
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework:Event/etc/events.xsd">
+    <event name="sales_order_save_after">
+        <observer name="axitrace_tracking_order_state_transition"
+                  instance="AxiTrace\Tracking\Observer\OrderStateTransitionObserver"/>
+    </event>
+</config>

@@ -1,0 +1,60 @@
+<?php
+/**
+ * @var \AxiTrace\Tracking\Block\Adminhtml\System\Config\TestConnectionButton $block
+ *
+ * Inline script renders a clickable button that POSTs the current
+ * workspace_public_key + tracking_domain values via fetch() to the AxiTrace
+ * Test Connection admin controller. The result is written into a status div
+ * directly below the button (no form save required).
+ */
+$htmlId = (string) $block->getData('html_id');
+$ajaxUrl = (string) $block->getData('ajax_url');
+$label = (string) $block->getData('button_label');
+?>
+<button type="button" id="<?= $block->escapeHtmlAttr($htmlId) ?>_btn" class="action-default scalable">
+    <span><?= $block->escapeHtml($label) ?></span>
+</button>
+<div id="<?= $block->escapeHtmlAttr($htmlId) ?>_status" style="margin-top:6px;font-size:12px;color:#555"></div>
+
+<script>
+    require(['jquery'], function ($) {
+        'use strict';
+        var btn = document.getElementById('<?= $block->escapeJs($htmlId) ?>_btn');
+        var status = document.getElementById('<?= $block->escapeJs($htmlId) ?>_status');
+        if (!btn || !status) {
+            return;
+        }
+        btn.addEventListener('click', function () {
+            var keyField = document.getElementById('axitrace_general_workspace_public_key');
+            var domainField = document.getElementById('axitrace_general_tracking_domain');
+            var formKey = (window.FORM_KEY || (window.formKey ? window.formKey : ''));
+            status.style.color = '#555';
+            status.textContent = 'Testing connection...';
+
+            $.ajax({
+                url: '<?= $block->escapeJs($ajaxUrl) ?>',
+                type: 'POST',
+                dataType: 'json',
+                data: {
+                    workspace_public_key: keyField ? keyField.value : '',
+                    tracking_domain: domainField ? domainField.value : '',
+                    form_key: formKey
+                }
+            }).done(function (resp) {
+                if (resp && resp.success) {
+                    status.style.color = '#28a745';
+                    status.textContent = resp.message || 'Connection verified.';
+                    if (resp.domain && domainField && !domainField.value) {
+                        domainField.value = resp.domain;
+                    }
+                } else {
+                    status.style.color = '#dc3545';
+                    status.textContent = (resp && resp.message) ? resp.message : 'Connection failed.';
+                }
+            }).fail(function () {
+                status.style.color = '#dc3545';
+                status.textContent = 'Test Connection request failed. Please try again.';
+            });
+        });
+    });
+</script>

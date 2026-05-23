@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<!--
+    Order confirmation page: pushes a client-side `transaction.charge` event
+    with the deterministic event_id, so the browser + server-side events
+    dedupe at the ad-platform layer.
+-->
+<page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
+    <body>
+        <referenceContainer name="before.body.end">
+            <block class="Magento\Framework\View\Element\Template"
+                   name="axitrace.order_confirmation"
+                   template="AxiTrace_Tracking::order-confirmation.phtml"
+                   ifconfig="axitrace/general/enabled">
+                <arguments>
+                    <argument name="view_model" xsi:type="object">AxiTrace\Tracking\ViewModel\OrderConfirmationContext</argument>
+                </arguments>
+            </block>
+        </referenceContainer>
+    </body>
+</page>

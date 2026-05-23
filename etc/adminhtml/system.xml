@@ -1,0 +1,176 @@
+<?xml version="1.0"?>
+<!--
+    AxiTrace configuration section under Stores → Configuration → AxiTrace.
+
+    `workspace_public_key` uses Magento's obscure field type with the Encrypted
+    backend model — the value is encrypted at rest in core_config_data and the
+    UI shows a masked value with a show/hide toggle.
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Config:etc/system_file.xsd">
+    <system>
+        <tab id="axitrace_tab" translate="label" sortOrder="500">
+            <label>AxiTrace</label>
+        </tab>
+
+        <section id="axitrace"
+                 translate="label"
+                 type="text"
+                 sortOrder="100"
+                 showInDefault="1"
+                 showInWebsite="1"
+                 showInStore="1">
+            <class>separator-top</class>
+            <label>AxiTrace</label>
+            <tab>axitrace_tab</tab>
+            <resource>AxiTrace_Tracking::config</resource>
+
+            <!--begin::General-->
+            <group id="general" translate="label" sortOrder="10" showInDefault="1" showInWebsite="1" showInStore="1">
+                <label>General</label>
+
+                <field id="enabled"
+                       translate="label comment"
+                       type="select"
+                       sortOrder="10"
+                       showInDefault="1"
+                       showInWebsite="1"
+                       showInStore="1">
+                    <label>Enable AxiTrace tracking</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <comment>Master kill switch. When set to No, no events are captured or forwarded.</comment>
+                </field>
+
+                <field id="workspace_public_key"
+                       translate="label comment"
+                       type="obscure"
+                       sortOrder="20"
+                       showInDefault="1"
+                       showInWebsite="1"
+                       showInStore="1">
+                    <label>Workspace public key</label>
+                    <backend_model>Magento\Config\Model\Config\Backend\Encrypted</backend_model>
+                    <validate>required-entry validate-axitrace-public-key</validate>
+                    <comment>Find your workspace public key at &lt;a href="https://axitrace.com/dashboard" target="_blank" rel="noopener"&gt;axitrace.com/dashboard&lt;/a&gt;. Format: pk_live_XXXXXXXX... or pk_test_XXXXXXXX...</comment>
+                    <depends>
+                        <field id="enabled">1</field>
+                    </depends>
+                </field>
+
+                <field id="tracking_domain"
+                       translate="label comment"
+                       type="text"
+                       sortOrder="30"
+                       showInDefault="1"
+                       showInWebsite="1"
+                       showInStore="1">
+                    <label>Tracking domain (optional)</label>
+                    <comment>Example: stat.merchant.com. Leave blank to use the default AxiTrace tracking domain (stat.axitrace.com).</comment>
+                    <depends>
+                        <field id="enabled">1</field>
+                        <field id="workspace_public_key" negative="1"/>
+                    </depends>
+                </field>
+
+                <field id="auto_detect_domain_button"
+                       translate="label"
+                       type="button"
+                       sortOrder="35"
+                       showInDefault="1"
+                       showInWebsite="1"
+                       showInStore="1">
+                    <label></label>
+                    <frontend_model>AxiTrace\Tracking\Block\Adminhtml\System\Config\AutoDetectDomainButton</frontend_model>
+                    <depends>
+                        <field id="enabled">1</field>
+                    </depends>
+                </field>
+
+                <field id="test_connection_button"
+                       translate="label"
+                       type="button"
+                       sortOrder="40"
+                       showInDefault="1"
+                       showInWebsite="1"
+                       showInStore="1">
+                    <label></label>
+                    <frontend_model>AxiTrace\Tracking\Block\Adminhtml\System\Config\TestConnectionButton</frontend_model>
+                    <depends>
+                        <field id="enabled">1</field>
+                    </depends>
+                </field>
+
+                <field id="connection_status"
+                       translate="label"
+                       sortOrder="50"
+                       showInDefault="1"
+                       showInWebsite="1"
+                       showInStore="1">
+                    <label>Connection status</label>
+                    <frontend_model>AxiTrace\Tracking\Block\Adminhtml\System\Config\StatusIndicator</frontend_model>
+                    <depends>
+                        <field id="enabled">1</field>
+                    </depends>
+                </field>
+            </group>
+            <!--end::General-->
+
+            <!--begin::Events-->
+            <group id="events" translate="label" sortOrder="20" showInDefault="1" showInWebsite="1" showInStore="1">
+                <label>Events</label>
+
+                <field id="purchase_enabled" translate="label" type="select" sortOrder="10" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Purchase events</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                </field>
+
+                <field id="add_to_cart_enabled" translate="label" type="select" sortOrder="20" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Add-to-cart events</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                </field>
+
+                <field id="view_content_enabled" translate="label" type="select" sortOrder="30" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Product view events</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                </field>
+
+                <field id="view_category_enabled" translate="label" type="select" sortOrder="40" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Category view events</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                </field>
+
+                <field id="page_view_enabled" translate="label" type="select" sortOrder="50" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Page view events</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <comment>Defaults to No — page view volume is high; keep off unless your AxiTrace plan accounts for it.</comment>
+                </field>
+
+                <depends>
+                    <field id="axitrace/general/enabled">1</field>
+                </depends>
+            </group>
+            <!--end::Events-->
+
+            <!--begin::Advanced-->
+            <group id="advanced" translate="label" sortOrder="30" showInDefault="1" showInWebsite="1" showInStore="1">
+                <label>Advanced</label>
+
+                <field id="api_base_url" translate="label comment" type="text" sortOrder="10" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>API base URL</label>
+                    <comment>Default: https://stat.axitrace.com. Override only for AxiTrace-supplied test environments.</comment>
+                </field>
+
+                <field id="log_level" translate="label" type="select" sortOrder="20" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Log level</label>
+                    <source_model>AxiTrace\Tracking\Model\Config\Source\LogLevel</source_model>
+                </field>
+
+                <depends>
+                    <field id="axitrace/general/enabled">1</field>
+                </depends>
+            </group>
+            <!--end::Advanced-->
+
+        </section>
+    </system>
+</config>

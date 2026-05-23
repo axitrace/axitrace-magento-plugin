@@ -1,0 +1,69 @@
+{
+    "description": "Minimal REST checkout flow exercised by tests/e2e/place-order.sh. Each step references the Magento 2 REST schema documented at https://developer.adobe.com/commerce/webapi/rest/quick-reference/. Values match the test customer fixture seeded by the E2E harness.",
+    "steps": [
+        {
+            "name": "add_simple_product_to_cart",
+            "method": "POST",
+            "path": "/rest/V1/carts/{cartId}/items",
+            "body": {
+                "cartItem": {
+                    "sku": "axitrace-test-simple",
+                    "qty": 1
+                }
+            }
+        },
+        {
+            "name": "set_billing_and_shipping",
+            "method": "POST",
+            "path": "/rest/V1/carts/{cartId}/shipping-information",
+            "body": {
+                "addressInformation": {
+                    "billing_address": {
+                        "email": "axitrace+e2e@example.test",
+                        "country_id": "US",
+                        "region_id": 12,
+                        "city": "Los Angeles",
+                        "postcode": "90001",
+                        "street": ["123 E2E Way"],
+                        "firstname": "AxiTrace",
+                        "lastname": "Tester",
+                        "telephone": "+15555550100"
+                    },
+                    "shipping_address": {
+                        "email": "axitrace+e2e@example.test",
+                        "country_id": "US",
+                        "region_id": 12,
+                        "city": "Los Angeles",
+                        "postcode": "90001",
+                        "street": ["123 E2E Way"],
+                        "firstname": "AxiTrace",
+                        "lastname": "Tester",
+                        "telephone": "+15555550100"
+                    },
+                    "shipping_carrier_code": "flatrate",
+                    "shipping_method_code": "flatrate"
+                }
+            }
+        },
+        {
+            "name": "place_order",
+            "method": "PUT",
+            "path": "/rest/V1/carts/{cartId}/order",
+            "body": {
+                "paymentMethod": {
+                    "method": "checkmo"
+                }
+            }
+        },
+        {
+            "name": "invoice_order",
+            "description": "Marking the order paid forces the state transition to processing, which is the trigger AxiTrace_Tracking observes.",
+            "method": "POST",
+            "path": "/rest/V1/order/{orderId}/invoice",
+            "body": {
+                "capture": false,
+                "notify": false
+            }
+        }
+    ]
+}
