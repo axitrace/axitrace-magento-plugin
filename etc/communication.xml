@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<!--
+    Message-queue topic declaration.
+
+    Topic `axitrace.order.placed` carries a JSON-encoded payload (a string) and
+    is consumed by AxiTrace\Tracking\Model\Queue\OrderEventConsumer::process().
+    JSON is used over Magento's strongly-typed DTOs so that the payload survives
+    schema changes inside the module without forcing topic re-creation in
+    queue infrastructure.
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework-message-queue:etc/communication.xsd">
+
+    <topic name="axitrace.order.placed" request="string">
+        <handler name="axitraceOrderEventHandler"
+                 type="AxiTrace\Tracking\Model\Queue\OrderEventConsumer"
+                 method="process"/>
+    </topic>
+
+</config>

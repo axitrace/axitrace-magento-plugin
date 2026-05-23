@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<!--
+    Cart page: pixel.phtml fires `view_cart` and (subscribed via JS) `add_to_cart`
+    on Magento's mage-cache-storage events.
+-->
+<page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
+    <body>
+        <!-- No additional arguments needed beyond StorefrontConfig — cart pixel
+             observes cart events from the SDK side via mage-cache-storage. -->
+    </body>
+</page>

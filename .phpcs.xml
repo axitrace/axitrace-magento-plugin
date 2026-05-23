@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<ruleset name="AxiTrace_Tracking" namespace="AxiTrace\Tracking\PHPCS">
+    <description>PHPCS configuration for AxiTrace_Tracking Magento module.</description>
+
+    <!--
+        Magento 2 standard v40. Severity 10 is enforced (failures fail CI).
+        The Adobe Marketplace EQP automated reviewer applies this exact ruleset.
+    -->
+    <rule ref="Magento2">
+        <!--
+            We intentionally do NOT suppress any sniffs. EQP runs PHPCS with
+            the ignore-annotations flag so any phpcs:ignore would be a false
+            positive in CI but flagged at submission.
+        -->
+    </rule>
+
+    <arg name="severity" value="10"/>
+    <arg name="warning-severity" value="10"/>
+    <arg name="error-severity" value="10"/>
+    <arg name="colors"/>
+    <arg name="extensions" value="php,phtml"/>
+    <arg name="parallel" value="4"/>
+
+    <file>./</file>
+
+    <exclude-pattern>./vendor/*</exclude-pattern>
+    <exclude-pattern>./tests/e2e/*</exclude-pattern>
+    <exclude-pattern>./marketplace/*</exclude-pattern>
+    <exclude-pattern>./tools/*</exclude-pattern>
+</ruleset>

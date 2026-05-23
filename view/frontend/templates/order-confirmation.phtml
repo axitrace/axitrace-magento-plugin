@@ -1,0 +1,58 @@
+<?php
+/**
+ * Order confirmation purchase-event push — Luma theme.
+ *
+ * Fires exactly once per success page load. The sessionStorage flag prevents
+ * a second fire on refresh: client-side dedupe complements server-side dedupe
+ * (UNIQUE event_id_hash) for cases where the merchant has client-only pixels
+ * enabled alongside the AxiTrace SDK.
+ *
+ * @var \Magento\Framework\View\Element\Template $block
+ */
+
+/** @var \AxiTrace\Tracking\ViewModel\OrderConfirmationContext $viewModel */
+$viewModel = $block->getData('view_model');
+if (!$viewModel || !$viewModel->hasOrder()) {
+    return;
+}
+
+$payload = $viewModel->getOrderPayload();
+$payloadJson = (string) json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+?>
+<script>
+    (function () {
+        'use strict';
+        var payload = <?= /* @noEscape */ $payloadJson ?>;
+        var key = 'axi:purchase:' + payload.event_id;
+        try {
+            if (sessionStorage && sessionStorage.getItem(key)) {
+                return;
+            }
+            if (sessionStorage) {
+                sessionStorage.setItem(key, '1');
+            }
+        } catch (e) {
+            // Ignore storage exceptions; idempotency is enforced server-side too.
+        }
+
+        function push() {
+            if (!window.axitrace || typeof window.axitrace.track !== 'function') {
+                return;
+            }
+            window.axitrace.track('transaction.charge', {
+                event_id:   payload.event_id,
+                orderId:    payload.orderId,
+                value:      payload.value,
+                currency:   payload.currency,
+                items:      payload.items,
+                email:      payload.email
+            });
+        }
+
+        if (window.axitrace) {
+            push();
+        } else {
+            window.addEventListener('axitrace:ready', push, { once: true });
+        }
+    })();
+</script>

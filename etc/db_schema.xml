@@ -1,0 +1,75 @@
+<?xml version="1.0"?>
+<!--
+    Declarative schema for AxiTrace event log idempotency table.
+
+    Compensates for Magento MysqlMq silent-drop bug (magento/magento2#18140):
+    - Observer INSERTs row with status=pending BEFORE publishing to MessageQueue.
+    - Consumer UPDATEs to status=sent only after the ingestion-api returns 2xx.
+    - UNIQUE(event_id_hash) blocks double-publish on observer double-fire.
+    - Failed events remain visible for the axitrace_retry_failed cron job.
+
+    FK on (order_id) with ON DELETE CASCADE cleans up the event log when an
+    order is hard-deleted (rare; integration test exercises this path).
+-->
+<schema xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework:Setup/Declaration/Schema/etc/schema.xsd">
+
+    <table name="axitrace_event_log" resource="default" engine="innodb" comment="AxiTrace event log: idempotent record of order-state transition events forwarded to ingestion-api">
+
+        <column xsi:type="int" name="entity_id" unsigned="true" nullable="false" identity="true" comment="Surrogate primary key"/>
+
+        <column xsi:type="int" name="order_id" unsigned="true" nullable="false" comment="FK to sales_order.entity_id"/>
+
+        <column xsi:type="varchar" name="increment_id" nullable="false" length="50" comment="Human-readable order id (used in UUID v5 event_id derivation)"/>
+
+        <column xsi:type="varchar" name="state_at_send" nullable="false" length="32" comment="Order state at the moment this event was captured (processing, complete, ...)"/>
+
+        <column xsi:type="varchar" name="event_id_hash" nullable="false" length="64" comment="UUID v5 of (order_id + state) — idempotency key"/>
+
+        <column xsi:type="int" name="payload_size_bytes" unsigned="true" nullable="false" default="0" comment="Size of the JSON payload posted to ingestion-api (observability)"/>
+
+        <column xsi:type="varchar" name="status" nullable="false" length="16" default="pending" comment="pending | sent | failed | skipped"/>
+
+        <column xsi:type="smallint" name="attempts" unsigned="true" nullable="false" default="0" comment="Retry counter"/>
+
+        <column xsi:type="text" name="last_error" nullable="true" comment="Last error message if status=failed"/>
+
+        <column xsi:type="datetime" name="sent_at" nullable="true" comment="When status flipped to sent"/>
+
+        <column xsi:type="timestamp" name="created_at" on_update="false" nullable="false" default="CURRENT_TIMESTAMP" comment="Row creation timestamp"/>
+
+        <column xsi:type="timestamp" name="updated_at" on_update="true" nullable="false" default="CURRENT_TIMESTAMP" comment="Row update timestamp"/>
+
+        <constraint xsi:type="primary" referenceId="PRIMARY">
+            <column name="entity_id"/>
+        </constraint>
+
+        <constraint xsi:type="unique" referenceId="UNQ_AXITRACE_EVENT_LOG_EVENT_ID_HASH">
+            <column name="event_id_hash"/>
+        </constraint>
+
+        <constraint xsi:type="foreign"
+                    referenceId="FK_AXITRACE_EVENT_LOG_ORDER_ID_SALES_ORDER_ENTITY_ID"
+                    table="axitrace_event_log"
+                    column="order_id"
+                    referenceTable="sales_order"
+                    referenceColumn="entity_id"
+                    onDelete="CASCADE"/>
+
+        <index referenceId="IDX_AXITRACE_EVENT_LOG_STATUS_ATTEMPTS" indexType="btree">
+            <column name="status"/>
+            <column name="attempts"/>
+        </index>
+
+        <index referenceId="IDX_AXITRACE_EVENT_LOG_ORDER_STATE" indexType="btree">
+            <column name="order_id"/>
+            <column name="state_at_send"/>
+        </index>
+
+        <index referenceId="IDX_AXITRACE_EVENT_LOG_INCREMENT_ID" indexType="btree">
+            <column name="increment_id"/>
+        </index>
+
+    </table>
+
+</schema>

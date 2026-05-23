@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<!--
+    Admin routes for the AxiTrace AJAX endpoints (Test Connection, Auto-Detect Domain).
+    Front name `axitrace` lives only in the adminhtml area.
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework:App/etc/routes.xsd">
+    <router id="admin">
+        <route id="axitrace" frontName="axitrace">
+            <module name="AxiTrace_Tracking"/>
+        </route>
+    </router>
+</config>
