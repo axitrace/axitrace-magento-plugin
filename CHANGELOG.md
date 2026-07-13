@@ -5,6 +5,11 @@ All notable changes to `axitrace/module-tracking` are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] - 2026-07-13
+
+### Added
+- Purchase events now carry the merchant's own Meta browser pixel cookies (`_fbp`/`_fbc`) when present. Captured in `OrderStateTransitionObserver` (the only request-scoped point in the purchase dispatch flow — `OrderEventConsumer` runs fully asynchronously via the MysqlMq cron consumer, with no HTTP request/cookie access), embedded in the `axitrace.order.placed` queue message, and forwarded by `OrderEventNormalizer`. Improves Facebook CAPI browser/server event matching; no behavior change when cookies are absent.
+
 ## [0.1.2] - 2026-05-23
 
 ### Fixed

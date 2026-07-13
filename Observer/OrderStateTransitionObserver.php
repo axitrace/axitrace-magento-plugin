@@ -13,6 +13,7 @@ use AxiTrace\Tracking\Model\EventLog\EventLogFactory;
 use AxiTrace\Tracking\Model\Queue\OrderEventPublisher;
 use Magento\Framework\Event\Observer;
 use Magento\Framework\Event\ObserverInterface;
+use Magento\Framework\Stdlib\CookieManagerInterface;
 use Magento\Sales\Api\Data\OrderInterface;
 use Magento\Sales\Model\Order;
 use Psr\Log\LoggerInterface;
@@ -28,15 +29,37 @@ use Psr\Log\LoggerInterface;
  *      multiple times in a single request).
  *   3. Try/catch wrap — the observer MUST NOT bubble; any throw would roll back the
  *      Magento sales order save transaction.
+ *
+ * fbp/fbc capture: this observer is the only request-scoped point in the purchase
+ * dispatch flow — OrderEventConsumer::process() runs fully asynchronously (MysqlMq
+ * cron consumer) with no HTTP request/cookie access. The customer's own Meta browser
+ * pixel cookies (_fbp/_fbc) are therefore read here, validated, and embedded directly
+ * in the queue message so OrderEventNormalizer can forward them later. Coverage caveat:
+ * for payment methods that confirm asynchronously via a server-to-server webhook (not
+ * the customer's own browser), this request has no customer cookies either — this is
+ * a best-effort enrichment, never a hard requirement for the purchase event.
  */
 class OrderStateTransitionObserver implements ObserverInterface
 {
+    /**
+     * Facebook Browser ID cookie format: fb.1.<timestamp>.<random_digits>
+     * Mirrors UserIdentityService::isValidFbp() in event-worker.
+     */
+    private const FBP_PATTERN = '/^fb\.\d+\.\d+\.\d+$/';
+
+    /**
+     * Facebook Click ID cookie format: fb.1.<timestamp>.<fbclid>
+     * Mirrors UserIdentityService::isValidFbc() in event-worker.
+     */
+    private const FBC_PATTERN = '/^fb\.\d+\.\d+\.[A-Za-z0-9_-]+$/';
+
     public function __construct(
         private readonly ModuleConfig $config,
         private readonly EventLogFactory $eventLogFactory,
         private readonly EventLogRepositoryInterface $eventLogRepo,
         private readonly OrderEventPublisher $publisher,
         private readonly UuidV5Generator $uuidGenerator,
+        private readonly CookieManagerInterface $cookieManager,
         private readonly LoggerInterface $logger,
     ) {
     }
@@ -111,7 +134,12 @@ class OrderStateTransitionObserver implements ObserverInterface
         // Publish to the queue. Failure to publish leaves the row in status=pending
         // so the retry cron will surface it.
         try {
-            $this->publisher->publishOrder($order, $eventIdHash);
+            $this->publisher->publishOrder(
+                $order,
+                $eventIdHash,
+                $this->readValidatedCookie('_fbp', self::FBP_PATTERN),
+                $this->readValidatedCookie('_fbc', self::FBC_PATTERN),
+            );
         } catch (\Throwable $e) {
             $this->logger->critical(
                 'AxiTrace observer: queue publish failed for order ' . $incrementId
@@ -119,5 +147,19 @@ class OrderStateTransitionObserver implements ObserverInterface
                 ['exception' => $e]
             );
         }
+    }
+
+    /**
+     * Reads a cookie from the current request and returns it only if it matches the
+     * given format. Returns null when absent or malformed — never forwards garbage.
+     */
+    private function readValidatedCookie(string $name, string $pattern): ?string
+    {
+        $value = $this->cookieManager->getCookie($name);
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return preg_match($pattern, $value) === 1 ? $value : null;
     }
 }

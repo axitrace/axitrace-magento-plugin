@@ -63,7 +63,10 @@ class OrderEventConsumer
                 return;
             }
 
-            $eventData = $this->normalizer->normalize($order, $eventIdHash, $workspaceKey);
+            $fbp = isset($payload['fbp']) ? (string) $payload['fbp'] : null;
+            $fbc = isset($payload['fbc']) ? (string) $payload['fbc'] : null;
+
+            $eventData = $this->normalizer->normalize($order, $eventIdHash, $workspaceKey, $fbp, $fbc);
             $payloadJson = (string) json_encode($eventData, JSON_THROW_ON_ERROR);
 
             $this->client->sendOrderEvent($payloadJson);

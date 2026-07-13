@@ -23,8 +23,17 @@ class OrderEventPublisher
     ) {
     }
 
-    public function publishOrder(OrderInterface $order, string $eventIdHash): void
-    {
+    /**
+     * @param string|null $fbp Validated Meta Browser ID cookie (_fbp), captured at request
+     *                         time by OrderStateTransitionObserver. Null when absent/invalid.
+     * @param string|null $fbc Validated Meta Click ID cookie (_fbc), same capture point.
+     */
+    public function publishOrder(
+        OrderInterface $order,
+        string $eventIdHash,
+        ?string $fbp = null,
+        ?string $fbc = null,
+    ): void {
         $payload = [
             'order_id'      => (int) $order->getEntityId(),
             'increment_id'  => (string) $order->getIncrementId(),
@@ -32,6 +41,15 @@ class OrderEventPublisher
             'event_id_hash' => $eventIdHash,
             'state'         => (string) $order->getState(),
         ];
+
+        // Omitted entirely when absent so consumers of older messages (and stores without
+        // their own Meta browser pixel) see exactly today's payload shape.
+        if ($fbp !== null) {
+            $payload['fbp'] = $fbp;
+        }
+        if ($fbc !== null) {
+            $payload['fbc'] = $fbc;
+        }
 
         $this->publisher->publish(self::TOPIC, (string) json_encode($payload, JSON_THROW_ON_ERROR));
     }

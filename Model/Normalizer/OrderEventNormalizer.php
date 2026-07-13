@@ -20,7 +20,8 @@ use Magento\Sales\Api\Data\OrderItemInterface;
  *       client: { email, phone },
  *       products: [{ productId, sku, name, quantity, price, currency }],
  *       revenue: { amount, currency },
- *       value: <float>
+ *       value: <float>,
+ *       fbp?: string, fbc?: string   // present only when captured at request time
  *     }
  *   }
  *
@@ -32,15 +33,23 @@ use Magento\Sales\Api\Data\OrderItemInterface;
  */
 class OrderEventNormalizer
 {
-    private const PLUGIN_VERSION = '0.1.0';
+    private const PLUGIN_VERSION = '0.1.3';
     private const SDK_VERSION    = 'magento-1.0';
     private const SOURCE         = 'magento';
 
     /**
+     * @param string|null $fbp Validated Meta Browser ID cookie (_fbp), captured at request
+     *                         time by OrderStateTransitionObserver. Null when absent/invalid.
+     * @param string|null $fbc Validated Meta Click ID cookie (_fbc), same capture point.
      * @return array<string, mixed>
      */
-    public function normalize(OrderInterface $order, string $eventIdHash, string $workspacePublicKey): array
-    {
+    public function normalize(
+        OrderInterface $order,
+        string $eventIdHash,
+        string $workspacePublicKey,
+        ?string $fbp = null,
+        ?string $fbc = null,
+    ): array {
         $billing = $order->getBillingAddress();
         $orderCurrency = (string) $order->getOrderCurrencyCode();
 
@@ -60,6 +69,28 @@ class OrderEventNormalizer
 
         $revenueAmount = (float) $order->getGrandTotal();
 
+        $data = [
+            'client' => [
+                'email' => (string) $order->getCustomerEmail(),
+                'phone' => $billing !== null ? (string) $billing->getTelephone() : '',
+            ],
+            'products' => $products,
+            'revenue' => [
+                'amount'   => $revenueAmount,
+                'currency' => $orderCurrency,
+            ],
+            'value' => $revenueAmount,
+        ];
+
+        // Omitted entirely when absent so the payload is byte-identical to today for
+        // stores without their own Meta browser pixel (backward compatibility).
+        if ($fbp !== null && $fbp !== '') {
+            $data['fbp'] = $fbp;
+        }
+        if ($fbc !== null && $fbc !== '') {
+            $data['fbc'] = $fbc;
+        }
+
         return [
             'event'                 => 'transaction.charge',
             'eventSalt'             => $eventIdHash,
@@ -77,18 +108,7 @@ class OrderEventNormalizer
             'billingCity'           => $billing !== null ? (string) $billing->getCity() : '',
             'billingCountry'        => $billing !== null ? (string) $billing->getCountryId() : '',
             'billingZip'            => $billing !== null ? (string) $billing->getPostcode() : '',
-            'data' => [
-                'client' => [
-                    'email' => (string) $order->getCustomerEmail(),
-                    'phone' => $billing !== null ? (string) $billing->getTelephone() : '',
-                ],
-                'products' => $products,
-                'revenue' => [
-                    'amount'   => $revenueAmount,
-                    'currency' => $orderCurrency,
-                ],
-                'value' => $revenueAmount,
-            ],
+            'data'                  => $data,
         ];
     }
 }
