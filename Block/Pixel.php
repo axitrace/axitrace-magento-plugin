@@ -55,11 +55,13 @@ class Pixel extends Template
     {
         $storeId = $this->getStoreId();
         return [
-            'purchase'      => $this->moduleConfig->isEventEnabled('purchase', $storeId),
-            'add_to_cart'   => $this->moduleConfig->isEventEnabled('add_to_cart', $storeId),
-            'view_content'  => $this->moduleConfig->isEventEnabled('view_content', $storeId),
-            'view_category' => $this->moduleConfig->isEventEnabled('view_category', $storeId),
-            'page_view'     => $this->moduleConfig->isEventEnabled('page_view', $storeId),
+            'purchase'         => $this->moduleConfig->isEventEnabled('purchase', $storeId),
+            'add_to_cart'      => $this->moduleConfig->isEventEnabled('add_to_cart', $storeId),
+            'view_content'     => $this->moduleConfig->isEventEnabled('view_content', $storeId),
+            'view_category'    => $this->moduleConfig->isEventEnabled('view_category', $storeId),
+            'page_view'        => $this->moduleConfig->isEventEnabled('page_view', $storeId),
+            'begin_checkout'   => $this->moduleConfig->isEventEnabled('begin_checkout', $storeId),
+            'add_payment_info' => $this->moduleConfig->isEventEnabled('add_payment_info', $storeId),
         ];
     }
 

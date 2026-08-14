@@ -42,11 +42,13 @@ class StorefrontConfig implements ArgumentInterface
             'apiBaseUrl'     => $this->config->getApiBaseUrl($storeId),
             'pageType'       => $this->resolvePageType(),
             'toggles'        => [
-                'purchase'      => $this->config->isEventEnabled('purchase', $storeId),
-                'add_to_cart'   => $this->config->isEventEnabled('add_to_cart', $storeId),
-                'view_content'  => $this->config->isEventEnabled('view_content', $storeId),
-                'view_category' => $this->config->isEventEnabled('view_category', $storeId),
-                'page_view'     => $this->config->isEventEnabled('page_view', $storeId),
+                'purchase'         => $this->config->isEventEnabled('purchase', $storeId),
+                'add_to_cart'      => $this->config->isEventEnabled('add_to_cart', $storeId),
+                'view_content'     => $this->config->isEventEnabled('view_content', $storeId),
+                'view_category'    => $this->config->isEventEnabled('view_category', $storeId),
+                'page_view'        => $this->config->isEventEnabled('page_view', $storeId),
+                'begin_checkout'   => $this->config->isEventEnabled('begin_checkout', $storeId),
+                'add_payment_info' => $this->config->isEventEnabled('add_payment_info', $storeId),
             ],
         ];
     }

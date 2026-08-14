@@ -14,6 +14,8 @@
 "Product view events","Product view events"
 "Category view events","Category view events"
 "Page view events","Page view events"
+"Checkout started events","Checkout started events"
+"Add payment info events","Add payment info events"
 "API base URL","API base URL"
 "Log level","Log level"
 "Error","Error"

@@ -145,6 +145,18 @@
                     <comment>Defaults to No — page view volume is high; keep off unless your AxiTrace plan accounts for it.</comment>
                 </field>
 
+                <field id="begin_checkout_enabled" translate="label comment" type="select" sortOrder="60" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Checkout started events</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <comment>Fires once when the customer reaches the checkout page, with cart value and currency.</comment>
+                </field>
+
+                <field id="add_payment_info_enabled" translate="label comment" type="select" sortOrder="70" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Add payment info events</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <comment>Fires once the customer reaches or selects a payment method during checkout. Best-effort: relies on the checkout SPA's URL step indicator.</comment>
+                </field>
+
                 <depends>
                     <field id="axitrace/general/enabled">1</field>
                 </depends>

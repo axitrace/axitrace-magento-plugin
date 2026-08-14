@@ -5,6 +5,13 @@ All notable changes to `axitrace/module-tracking` are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4] - 2026-08-13
+
+### Added
+- Storefront pixel now fires `begin_checkout` on the checkout page (`checkout_index_index`) with cart value, currency, and item count, read from the server-authoritative quote via the new `ViewModel\CheckoutContext` (mirrors `ViewModel\OrderConfirmationContext`'s defensive try/catch pattern — any failure returns an empty payload rather than interrupting the checkout render).
+- Storefront pixel now fires `add_payment_info` (with the same cart value/currency/item count) when the customer reaches the payment step. Primary trigger: the checkout SPA's URL hash reaching `#payment` (`Magento_Checkout/js/model/step-navigator` syncs the active step to `location.hash`), which fires regardless of how many payment methods are configured. Fallback trigger: a delegated `change` listener on `payment[method]` radio inputs, for checkout customizations that don't use step-navigator's hash sync.
+- New per-event admin toggles under Stores → Configuration → AxiTrace → Events: "Checkout started events" (`begin_checkout_enabled`) and "Add payment info events" (`add_payment_info_enabled`). Both default to disabled (opt-in), matching the existing toggle pattern.
+
 ## [0.1.3] - 2026-07-13
 
 ### Added

@@ -42,11 +42,12 @@ pixel so platforms dedupe the two sources and you don't double-count.
 - **Polished admin UI** — Stores → Configuration → AxiTrace. Workspace key is
   encrypted at rest via Magento's `Encrypted` backend model. Test Connection
   and Auto-Detect Domain buttons give live feedback in under 3 seconds.
-- **Storefront pixel** for Luma — vanilla JS, defer-loaded.
+- **Storefront pixel** for Luma — vanilla JS, defer-loaded. Fires product
+  view, add-to-cart, checkout-started, and add-payment-info events in
+  addition to server-side purchase capture.
 - **Hyva theme support** via the separate `axitrace/module-tracking-hyva`
   Composer package. Alpine.js CSP-build compatible, strict
   `$hyvaCsp->registerInlineScript()` placement audited in CI.
-- **Hyva Checkout context** — separate CSP pipeline correctly registered.
 
 ### Versions supported
 

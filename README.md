@@ -77,6 +77,8 @@ to install with the Marketplace authentication keys from
 | `view_content` | Storefront pixel on PDP (Luma + Hyva) |
 | `view_category` | Storefront pixel on category page |
 | `product.addToCart` | Storefront pixel via Magento cart events |
+| `begin_checkout` | Storefront pixel on the checkout page, with cart value/currency/item count. Off by default — enable "Checkout started events". |
+| `add_payment_info` | Storefront pixel, best-effort, when the customer reaches the payment step. Off by default — enable "Add payment info events". |
 | `page.view` | Off by default (high volume) |
 
 PII (email, phone) is forwarded in **plain text** server-to-server; Facebook's
