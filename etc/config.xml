@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<!--
+  Default event toggles. Without these, ScopeConfig::isSetFlag() returns false
+  for every event (ModuleConfig::isEventEnabled), so a freshly-installed module
+  would forward nothing until the merchant enabled each event by hand. Default
+  the full conversion funnel ON so tracking works out of the box; the merchant
+  can still disable any event under Stores -> Configuration -> AxiTrace -> Events.
+
+  page_view stays OFF by default (high volume — opt-in, see the integration doc);
+  view_category stays OFF (not a canonical AxiTrace/Meta event — dropped downstream).
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Store:etc/config.xsd">
+    <default>
+        <axitrace>
+            <events>
+                <purchase_enabled>1</purchase_enabled>
+                <add_to_cart_enabled>1</add_to_cart_enabled>
+                <view_content_enabled>1</view_content_enabled>
+                <view_category_enabled>0</view_category_enabled>
+                <page_view_enabled>0</page_view_enabled>
+                <begin_checkout_enabled>1</begin_checkout_enabled>
+                <add_payment_info_enabled>1</add_payment_info_enabled>
+            </events>
+        </axitrace>
+    </default>
+</config>
