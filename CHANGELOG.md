@@ -5,22 +5,30 @@ All notable changes to `axitrace/module-tracking` are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-09-16
+
+### Added
+- Purchase events now carry the shopper's cookie consent decision as `data.consent`, read from Magento's own Cookie Restriction Mode (`Stores > Configuration > General > Web > Default Cookie Settings > Cookie Restriction Mode`). When the mode is enabled, a buyer who clicked "Allow Cookies" on this website (cookie `user_allowed_save_cookie`) is reported as `granted` and a buyer who did not is reported as `denied`. AxiTrace stores every purchase either way (revenue reporting is unaffected) and forwards a `denied` purchase to no ad platform, with the ad identifiers stripped.
+- The decision is captured in `OrderStateTransitionObserver` (the only request-scoped point of the purchase dispatch flow) and travels through the `axitrace.order.placed` queue message into `OrderEventNormalizer`. The rules live in the framework-free `Model\Consent\CookieRestrictionConsentResolver`, covered branch by branch in `tests/Unit/Model/Consent`.
+- Orders created outside the storefront (admin invoice, payment webhook, cron, REST API) carry no consent state at all instead of a wrong `denied`: those requests have no buyer cookies, so a missing cookie proves nothing there. Stores that run Cookie Restriction Mode off also send no consent state, exactly as before, and the AxiTrace workspace consent setting decides.
+- No storefront change: the AxiTrace JavaScript SDK reads the same `user_allowed_save_cookie` on Luma and Hyva, so the browser side needs no template edit and the companion `axitrace/module-tracking-hyva` package is unchanged.
+
 ## [0.1.5] - 2026-08-14
 
 ### Fixed
-- **Events now track out of the box.** Previously every event toggle defaulted to *off* (`ScopeConfig::isSetFlag` with no `etc/config.xml` defaults), so a freshly installed and enabled module forwarded nothing until the merchant turned each event on by hand. Added `etc/config.xml` defaulting the full conversion funnel to *on* — Purchase, AddToCart, ViewContent, InitiateCheckout, AddPaymentInfo. `page.view` stays off by default (high volume, opt-in) and `view_category` stays off (not a canonical event). Merchants can still disable any event under Stores → Configuration → AxiTrace → Events.
+- **Events now track out of the box.** Previously every event toggle defaulted to *off* (`ScopeConfig::isSetFlag` with no `etc/config.xml` defaults), so a freshly installed and enabled module forwarded nothing until the merchant turned each event on by hand. Added `etc/config.xml` defaulting the full conversion funnel to *on* - Purchase, AddToCart, ViewContent, InitiateCheckout, AddPaymentInfo. `page.view` stays off by default (high volume, opt-in) and `view_category` stays off (not a canonical event). Merchants can still disable any event under Stores → Configuration → AxiTrace → Events.
 
 ## [0.1.4] - 2026-08-13
 
 ### Added
-- Storefront pixel now fires `begin_checkout` on the checkout page (`checkout_index_index`) with cart value, currency, and item count, read from the server-authoritative quote via the new `ViewModel\CheckoutContext` (mirrors `ViewModel\OrderConfirmationContext`'s defensive try/catch pattern — any failure returns an empty payload rather than interrupting the checkout render).
+- Storefront pixel now fires `begin_checkout` on the checkout page (`checkout_index_index`) with cart value, currency, and item count, read from the server-authoritative quote via the new `ViewModel\CheckoutContext` (mirrors `ViewModel\OrderConfirmationContext`'s defensive try/catch pattern - any failure returns an empty payload rather than interrupting the checkout render).
 - Storefront pixel now fires `add_payment_info` (with the same cart value/currency/item count) when the customer reaches the payment step. Primary trigger: the checkout SPA's URL hash reaching `#payment` (`Magento_Checkout/js/model/step-navigator` syncs the active step to `location.hash`), which fires regardless of how many payment methods are configured. Fallback trigger: a delegated `change` listener on `payment[method]` radio inputs, for checkout customizations that don't use step-navigator's hash sync.
 - New per-event admin toggles under Stores → Configuration → AxiTrace → Events: "Checkout started events" (`begin_checkout_enabled`) and "Add payment info events" (`add_payment_info_enabled`). Both default to disabled (opt-in), matching the existing toggle pattern.
 
 ## [0.1.3] - 2026-07-13
 
 ### Added
-- Purchase events now carry the merchant's own Meta browser pixel cookies (`_fbp`/`_fbc`) when present. Captured in `OrderStateTransitionObserver` (the only request-scoped point in the purchase dispatch flow — `OrderEventConsumer` runs fully asynchronously via the MysqlMq cron consumer, with no HTTP request/cookie access), embedded in the `axitrace.order.placed` queue message, and forwarded by `OrderEventNormalizer`. Improves Facebook CAPI browser/server event matching; no behavior change when cookies are absent.
+- Purchase events now carry the merchant's own Meta browser pixel cookies (`_fbp`/`_fbc`) when present. Captured in `OrderStateTransitionObserver` (the only request-scoped point in the purchase dispatch flow - `OrderEventConsumer` runs fully asynchronously via the MysqlMq cron consumer, with no HTTP request/cookie access), embedded in the `axitrace.order.placed` queue message, and forwarded by `OrderEventNormalizer`. Improves Facebook CAPI browser/server event matching; no behavior change when cookies are absent.
 
 ## [0.1.2] - 2026-05-23
 
@@ -47,6 +55,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Compatibility
 - Magento Open Source 2.4.6 / 2.4.7 / 2.4.8.
-- Adobe Commerce (on-prem editions) — same versions.
+- Adobe Commerce (on-prem editions) - same versions.
 - PHP 8.1 / 8.2 / 8.3 / 8.4 (per Magento version matrix).
 - Luma theme out of the box. Hyva theme via the separate `axitrace/module-tracking-hyva` package.

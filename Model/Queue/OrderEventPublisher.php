@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AxiTrace\Tracking\Model\Queue;
 
+use AxiTrace\Tracking\Model\Consent\CookieRestrictionConsentResolver;
 use Magento\Framework\MessageQueue\PublisherInterface;
 use Magento\Sales\Api\Data\OrderInterface;
 
@@ -11,7 +12,7 @@ use Magento\Sales\Api\Data\OrderInterface;
  * Publishes an order-placed message onto the `axitrace.order.placed` topic.
  *
  * Payload is a JSON-encoded array containing only what the consumer needs to
- * rebuild the event — the order is re-fetched from the repository on the
+ * rebuild the event - the order is re-fetched from the repository on the
  * consumer side, so we never trust mutable state across the queue boundary.
  */
 class OrderEventPublisher
@@ -27,12 +28,16 @@ class OrderEventPublisher
      * @param string|null $fbp Validated Meta Browser ID cookie (_fbp), captured at request
      *                         time by OrderStateTransitionObserver. Null when absent/invalid.
      * @param string|null $fbc Validated Meta Click ID cookie (_fbc), same capture point.
+     * @param string|null $consent The visitor's Cookie Restriction Mode decision
+     *                             ('granted' / 'denied'), captured at the same point.
+     *                             Null when this request states nothing about consent.
      */
     public function publishOrder(
         OrderInterface $order,
         string $eventIdHash,
         ?string $fbp = null,
         ?string $fbc = null,
+        ?string $consent = null,
     ): void {
         $payload = [
             'order_id'      => (int) $order->getEntityId(),
@@ -49,6 +54,15 @@ class OrderEventPublisher
         }
         if ($fbc !== null) {
             $payload['fbc'] = $fbc;
+        }
+
+        // Same rule for the consent state: a store with Cookie Restriction Mode off,
+        // and every non-frontend context, publish exactly today's payload shape.
+        if (
+            $consent === CookieRestrictionConsentResolver::DECISION_GRANTED
+            || $consent === CookieRestrictionConsentResolver::DECISION_DENIED
+        ) {
+            $payload['consent'] = $consent;
         }
 
         $this->publisher->publish(self::TOPIC, (string) json_encode($payload, JSON_THROW_ON_ERROR));

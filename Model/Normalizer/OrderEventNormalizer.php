@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AxiTrace\Tracking\Model\Normalizer;
 
+use AxiTrace\Tracking\Model\Consent\CookieRestrictionConsentResolver;
 use Magento\Sales\Api\Data\OrderInterface;
 use Magento\Sales\Api\Data\OrderItemInterface;
 
@@ -21,19 +22,20 @@ use Magento\Sales\Api\Data\OrderItemInterface;
  *       products: [{ productId, sku, name, quantity, price, currency }],
  *       revenue: { amount, currency },
  *       value: <float>,
- *       fbp?: string, fbc?: string   // present only when captured at request time
+ *       fbp?: string, fbc?: string,  // present only when captured at request time
+ *       consent?: "granted"|"denied" // present only when the store asks for consent
  *     }
  *   }
  *
- * PII is forwarded in plain text per project memory — the Facebook CAPI PHP SDK
+ * PII is forwarded in plain text per project memory - the Facebook CAPI PHP SDK
  * and TikTok Events API auto-hash; only `external_id` requires manual SHA-256.
  *
  * Currency: read from $order->getOrderCurrencyCode() (presentation currency),
- * not base currency — matches AstrophotoMarket lesson logged in project memory.
+ * not base currency - matches AstrophotoMarket lesson logged in project memory.
  */
 class OrderEventNormalizer
 {
-    private const PLUGIN_VERSION = '0.1.3';
+    private const PLUGIN_VERSION = '0.2.0';
     private const SDK_VERSION    = 'magento-1.0';
     private const SOURCE         = 'magento';
 
@@ -41,6 +43,9 @@ class OrderEventNormalizer
      * @param string|null $fbp Validated Meta Browser ID cookie (_fbp), captured at request
      *                         time by OrderStateTransitionObserver. Null when absent/invalid.
      * @param string|null $fbc Validated Meta Click ID cookie (_fbc), same capture point.
+     * @param string|null $consent The visitor's Cookie Restriction Mode decision
+     *                             ('granted' / 'denied'), same capture point. Null when
+     *                             this purchase states nothing about consent.
      * @return array<string, mixed>
      */
     public function normalize(
@@ -49,6 +54,7 @@ class OrderEventNormalizer
         string $workspacePublicKey,
         ?string $fbp = null,
         ?string $fbc = null,
+        ?string $consent = null,
     ): array {
         $billing = $order->getBillingAddress();
         $orderCurrency = (string) $order->getOrderCurrencyCode();
@@ -89,6 +95,18 @@ class OrderEventNormalizer
         }
         if ($fbc !== null && $fbc !== '') {
             $data['fbc'] = $fbc;
+        }
+
+        // The visitor's Cookie Restriction Mode decision. AxiTrace's workspace consent
+        // policy reads it from `data.consent` to decide whether this purchase may be
+        // forwarded to the ad platforms. Omitted when the store runs without Cookie
+        // Restriction Mode, and in every non-frontend context, so the worker sees
+        // "no consent state" rather than a guessed one.
+        if (
+            $consent === CookieRestrictionConsentResolver::DECISION_GRANTED
+            || $consent === CookieRestrictionConsentResolver::DECISION_DENIED
+        ) {
+            $data['consent'] = $consent;
         }
 
         return [

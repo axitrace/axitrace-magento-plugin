@@ -18,12 +18,12 @@ use Psr\Log\LoggerInterface;
  *
  * Workflow:
  *   1. Decode JSON payload (order_id, increment_id, event_id_hash).
- *   2. Re-fetch the order via OrderRepositoryInterface — never trust serialised state.
+ *   2. Re-fetch the order via OrderRepositoryInterface - never trust serialised state.
  *   3. Normalize via OrderEventNormalizer.
  *   4. POST via IngestionApiClient with explicit 5s/3s timeouts.
  *   5. Update axitrace_event_log row to `sent` or `failed`.
  *
- * Catches \Throwable — Magento's MysqlMq has a silent-drop bug; if we rethrow,
+ * Catches \Throwable - Magento's MysqlMq has a silent-drop bug; if we rethrow,
  * the message vanishes. Instead we update the log row, log critically, and
  * return normally so the retry cron handles re-publish.
  */
@@ -66,7 +66,16 @@ class OrderEventConsumer
             $fbp = isset($payload['fbp']) ? (string) $payload['fbp'] : null;
             $fbc = isset($payload['fbc']) ? (string) $payload['fbc'] : null;
 
-            $eventData = $this->normalizer->normalize($order, $eventIdHash, $workspaceKey, $fbp, $fbc);
+            $consent = isset($payload['consent']) ? (string) $payload['consent'] : null;
+
+            $eventData = $this->normalizer->normalize(
+                $order,
+                $eventIdHash,
+                $workspaceKey,
+                $fbp,
+                $fbc,
+                $consent
+            );
             $payloadJson = (string) json_encode($eventData, JSON_THROW_ON_ERROR);
 
             $this->client->sendOrderEvent($payloadJson);
@@ -96,14 +105,14 @@ class OrderEventConsumer
             $decoded = json_decode($message, true, 16, JSON_THROW_ON_ERROR);
         } catch (\JsonException $e) {
             $this->logger->critical(
-                'AxiTrace consumer: message JSON decode failed — message discarded.',
+                'AxiTrace consumer: message JSON decode failed - message discarded.',
                 ['exception' => $e]
             );
             return null;
         }
 
         if (!is_array($decoded) || !isset($decoded['order_id'], $decoded['event_id_hash'])) {
-            $this->logger->critical('AxiTrace consumer: malformed payload — message discarded.');
+            $this->logger->critical('AxiTrace consumer: malformed payload - message discarded.');
             return null;
         }
 
