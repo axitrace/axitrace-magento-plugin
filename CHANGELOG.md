@@ -5,6 +5,16 @@ All notable changes to `axitrace/module-tracking` are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-10-08
+
+### Added
+- **Microsoft Advertising, X, Pinterest, LinkedIn and Snapchat click ids on purchases.** The AxiTrace web SDK 0.24.0 keeps these click ids in first-party cookies in the same `v2|<firstSeenMs>|<clickId>` format: `_axi_msclkid` and `_axi_twclid` (90 days), `_axi_epik` (60 days), `_axi_li_fat_id` (30 days) and `_axi_sccid` (28 days). They are now captured with the rest of the browser identity when the order is placed, stored in `sales_order.axitrace_browser_identity` and sent as `data.msclkid`, `data.twclid`, `data.epik`, `data.li_fat_id` and `data.sccid`. No `setup:upgrade` is needed: the column is the same.
+- Snapchat's own URL parameter `ScCid` is read first, then `sccid`.
+- When neither the URL nor the AxiTrace cookie has the click, the cookie the platform's own tag writes is read, and never changed: `_uetmsclkid` (Microsoft UET, the `_uet` prefix removed), `_twclid` (the X pixel's JSON `{"twclid": ...}` or a bare id), `_epik` (Pinterest) and `li_fat_id` (LinkedIn). Snapchat has no such cookie.
+
+### Changed
+- A click id in the URL that repeats the click the AxiTrace cookie already holds after its window has passed (or in the old unversioned format) is now treated as a bookmarked link and not sent, as the web SDK does. This applies to every click id, including `gclid`, `gbraid`, `wbraid`, `ttclid`, `rdt_cid` and `oppref`. A different click id in the URL is still a new click and wins.
+
 ## [0.4.0] - 2026-10-08
 
 ### Fixed

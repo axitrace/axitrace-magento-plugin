@@ -42,6 +42,11 @@ class BrowserIdentity
         'ttclid',
         'rdt_cid',
         'oppref',
+        'msclkid',
+        'twclid',
+        'epik',
+        'li_fat_id',
+        'sccid',
     ];
 
     /** Upper bound for any single stored value; the User-Agent is the longest one. */

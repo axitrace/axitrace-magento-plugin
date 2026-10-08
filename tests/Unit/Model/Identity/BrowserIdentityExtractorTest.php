@@ -12,7 +12,9 @@ use PHPUnit\Framework\TestCase;
  * The cookie rules match the PHP SDK 1.10.0 and the web SDK that wrote the cookies:
  * "v2|<firstSeenMs>|<clickId>" is unwrapped to the bare click id, a click older than
  * its window is dropped, an unversioned value is ignored, and a click id in the URL
- * always wins over the stored one.
+ * wins over the stored one unless it replays that very click after its window. Web
+ * SDK 0.24.0 added msclkid, twclid, epik, li_fat_id and sccid ("_axi_" cookies) with a
+ * read-only fallback to the platforms' own cookies.
  */
 class BrowserIdentityExtractorTest extends TestCase
 {
@@ -109,6 +111,194 @@ class BrowserIdentityExtractorTest extends TestCase
         );
 
         self::assertSame('stored-gclid', $identity->signals()['gclid']);
+    }
+
+    /**
+     * The five click ids added in web SDK 0.24.0: key, SDK cookie, max age, a realistic id.
+     *
+     * @return array<string, array{0: string, 1: string, 2: int, 3: string}>
+     */
+    public static function newClickIds(): array
+    {
+        return [
+            'msclkid'   => ['msclkid', '_axi_msclkid', 90, 'a1b2c3d4e5f60718293a4b5c6d7e8f90'],
+            'twclid'    => ['twclid', '_axi_twclid', 90, '2-7abc1def2ghi3jkl4mno5pqr'],
+            'epik'      => ['epik', '_axi_epik', 60, 'dj0yJnU9c2FtcGxlRXBpa1ZhbHVl'],
+            'li_fat_id' => ['li_fat_id', '_axi_li_fat_id', 30, 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d'],
+            'sccid'     => ['sccid', '_axi_sccid', 28, 'b2a1f3c4-5d6e-4f80-9a1b-2c3d4e5f6a7b'],
+        ];
+    }
+
+    public function testClickIdTablesMatchTheWebSdk(): void
+    {
+        $expected = [
+            'gclid'   => ['_gclid', 90],
+            'gbraid'  => ['_gbraid', 90],
+            'wbraid'  => ['_wbraid', 90],
+            'ttclid'  => ['_ttclid', 90],
+            'rdt_cid' => ['_rdt_cid', 28],
+            'oppref'  => ['_oppref', 28],
+        ];
+        foreach (self::newClickIds() as [$key, $cookie, $days]) {
+            $expected[$key] = [$cookie, $days];
+        }
+
+        self::assertSame($expected, BrowserIdentityExtractor::CLICK_ID_COOKIES);
+        self::assertSame(['sccid' => ['ScCid', 'sccid']], BrowserIdentityExtractor::CLICK_ID_URL_PARAMS);
+        self::assertSame(
+            ['msclkid' => '_uetmsclkid', 'twclid' => '_twclid', 'epik' => '_epik', 'li_fat_id' => 'li_fat_id'],
+            BrowserIdentityExtractor::VENDOR_CLICK_ID_COOKIES
+        );
+        foreach (array_keys($expected) as $key) {
+            self::assertContains($key, BrowserIdentity::SIGNAL_KEYS, 'stored and forwarded: ' . $key);
+        }
+    }
+
+    /**
+     * @dataProvider newClickIds
+     */
+    public function testNewClickIdCookieIsUnwrapped(string $key, string $cookie, int $days, string $id): void
+    {
+        self::assertSame([$key => $id], $this->extract([$cookie => $this->wrapped($id, 1)])->signals());
+    }
+
+    /**
+     * @dataProvider newClickIds
+     */
+    public function testNewClickIdFromTheUrl(string $key, string $cookie, int $days, string $id): void
+    {
+        self::assertSame([$key => $id], $this->extract([], [$key => $id])->signals());
+    }
+
+    /**
+     * @dataProvider newClickIds
+     */
+    public function testNewClickIdUrlWinsOverTheCookie(string $key, string $cookie, int $days, string $id): void
+    {
+        $identity = $this->extract([$cookie => $this->wrapped('stored-click-1', 1)], [$key => $id]);
+
+        self::assertSame([$key => $id], $identity->signals());
+    }
+
+    /**
+     * @dataProvider newClickIds
+     */
+    public function testNewClickIdWindowIsTheWebSdkMaximumAge(string $key, string $cookie, int $days, string $id): void
+    {
+        self::assertSame([$key => $id], $this->extract([$cookie => $this->wrapped($id, $days)])->signals());
+        self::assertSame([], $this->extract([$cookie => $this->wrapped($id, $days + 1)])->signals());
+    }
+
+    /**
+     * @dataProvider newClickIds
+     */
+    public function testNewClickIdMalformedCookieIsIgnored(string $key, string $cookie, int $days, string $id): void
+    {
+        foreach ([$id, 'v2|abc|' . $id, 'v2|0|' . $id, 'v2|' . self::NOW_MS . '|', 'v2|' . self::NOW_MS . '|a b'] as $raw) {
+            self::assertSame([], $this->extract([$cookie => $raw])->signals(), $raw);
+        }
+    }
+
+    /**
+     * A bookmarked landing URL replaying the stored click after its window is not a new
+     * ad click (web SDK isKnownStaleCookie), for every click id.
+     */
+    public function testUrlReplayingAnExpiredOrLegacyStoredClickIsDropped(): void
+    {
+        foreach (BrowserIdentityExtractor::CLICK_ID_COOKIES as $key => [$cookie, $days]) {
+            $param = BrowserIdentityExtractor::CLICK_ID_URL_PARAMS[$key][0] ?? $key;
+
+            $expired = $this->extract([$cookie => $this->wrapped('replayed-click', $days + 1)], [$param => 'replayed-click']);
+            $legacy = $this->extract([$cookie => 'replayed-click'], [$param => 'replayed-click']);
+            $newClick = $this->extract([$cookie => $this->wrapped('old-click', $days + 1)], [$param => 'new-click']);
+
+            self::assertSame([], $expired->signals(), $key . ' expired');
+            self::assertSame([], $legacy->signals(), $key . ' legacy');
+            self::assertSame([$key => 'new-click'], $newClick->signals(), $key . ' new click');
+        }
+    }
+
+    public function testSnapClickIdIsReadFromScCidBeforeSccid(): void
+    {
+        self::assertSame(['sccid' => 'snap-capital'], $this->extract([], ['ScCid' => 'snap-capital'])->signals());
+        self::assertSame(
+            ['sccid' => 'snap-capital'],
+            $this->extract([], ['ScCid' => 'snap-capital', 'sccid' => 'snap-lower'])->signals()
+        );
+        self::assertSame(
+            ['sccid' => 'snap-lower'],
+            $this->extract([], ['ScCid' => 'has space', 'sccid' => 'snap-lower'])->signals()
+        );
+    }
+
+    /**
+     * Platform cookie fallback: key, vendor cookie, raw value as the platform's tag
+     * writes it, the bare id.
+     *
+     * @return array<string, array{0: string, 1: string, 2: string, 3: string}>
+     */
+    public static function vendorCookies(): array
+    {
+        return [
+            'msclkid with the UET prefix' => ['msclkid', '_uetmsclkid', '_ueta1b2c3d4e5f60718293a4b5c6d7e8f90', 'a1b2c3d4e5f60718293a4b5c6d7e8f90'],
+            'msclkid bare'                => ['msclkid', '_uetmsclkid', 'a1b2c3d4e5f60718293a4b5c6d7e8f90', 'a1b2c3d4e5f60718293a4b5c6d7e8f90'],
+            'twclid X pixel JSON'         => ['twclid', '_twclid', '{"twclid":"2-7abc1def2ghi3jkl4mno5pqr","timestamp":1789990000000}', '2-7abc1def2ghi3jkl4mno5pqr'],
+            'twclid bare'                 => ['twclid', '_twclid', '2-7abc1def2ghi3jkl4mno5pqr', '2-7abc1def2ghi3jkl4mno5pqr'],
+            'epik bare'                   => ['epik', '_epik', 'dj0yJnU9c2FtcGxlRXBpa1ZhbHVl', 'dj0yJnU9c2FtcGxlRXBpa1ZhbHVl'],
+            'li_fat_id bare'              => ['li_fat_id', 'li_fat_id', 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d', 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d'],
+        ];
+    }
+
+    /**
+     * @dataProvider vendorCookies
+     */
+    public function testPlatformCookieIsTheLastFallback(string $key, string $vendor, string $raw, string $id): void
+    {
+        [$sdkCookie, $days] = BrowserIdentityExtractor::CLICK_ID_COOKIES[$key];
+
+        self::assertSame([$key => $id], $this->extract([$vendor => $raw])->signals(), 'alone');
+        self::assertSame(
+            [$key => $id],
+            $this->extract([$vendor => $raw, $sdkCookie => $this->wrapped('expired-click', $days + 1)])->signals(),
+            'expired SDK cookie'
+        );
+        self::assertSame(
+            [$key => 'sdk-click'],
+            $this->extract([$vendor => $raw, $sdkCookie => $this->wrapped('sdk-click', 1)])->signals(),
+            'SDK cookie wins'
+        );
+        self::assertSame(
+            [$key => 'url-click'],
+            $this->extract([$vendor => $raw], [$key => 'url-click'])->signals(),
+            'URL wins'
+        );
+        self::assertSame(
+            [],
+            $this->extract(
+                [$vendor => $raw, $sdkCookie => $this->wrapped('replayed-click', $days + 1)],
+                [$key => 'replayed-click']
+            )->signals(),
+            'a replayed bookmark never falls back to the platform cookie'
+        );
+    }
+
+    public function testMalformedPlatformCookiesAreIgnored(): void
+    {
+        foreach ([
+            '_uetmsclkid' => ['_uet', '_uetabc def', str_repeat('a', 501)],
+            '_twclid'     => ['{not json', '{"other":"2-7abc"}', '{"twclid":12345678}', '{"twclid":"a b"}'],
+            '_epik'       => ['', 'a<b>'],
+            'li_fat_id'   => ['has a space', 'v2|1789990000000|wrapped'],
+        ] as $cookie => $values) {
+            foreach ($values as $raw) {
+                self::assertSame([], $this->extract([$cookie => $raw])->signals(), $cookie . '=' . $raw);
+            }
+        }
+    }
+
+    public function testSnapHasNoPlatformCookieFallback(): void
+    {
+        self::assertSame([], $this->extract(['_scid' => 'b2a1f3c4-5d6e', 'sccid' => 'b2a1f3c4-5d6e'])->signals());
     }
 
     public function testBrowserIdsAreValidatedAndForwardedUnderTheirWorkerNames(): void

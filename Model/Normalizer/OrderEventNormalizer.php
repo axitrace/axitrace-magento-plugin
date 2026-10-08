@@ -58,7 +58,7 @@ use Magento\Sales\Api\Data\OrderItemInterface;
  */
 class OrderEventNormalizer
 {
-    private const PLUGIN_VERSION = '0.4.0';
+    private const PLUGIN_VERSION = '0.4.1';
     private const SDK_VERSION    = 'magento-1.0';
     private const SOURCE         = 'magento';
 

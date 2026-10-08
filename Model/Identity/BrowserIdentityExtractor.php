@@ -12,14 +12,24 @@ namespace AxiTrace\Tracking\Model\Identity;
  *
  * Rules, mirroring the AxiTrace PHP SDK 1.10.0 (AxiTrace::autoDetectAttribution())
  * and the web SDK that wrote the cookies:
- *   - Click ids (gclid, gbraid, wbraid, ttclid, rdt_cid, oppref): a value in the
- *     current URL wins; otherwise the first-party cookie the web SDK persisted
- *     (`_gclid`, `_gbraid`, `_wbraid`, `_ttclid` for 90 days, `_rdt_cid`, `_oppref`
- *     for 28 days). Cookie values have the format "v2|<firstSeenMs>|<clickId>"; only
- *     the bare click id is kept. An unversioned value (which the web SDK itself
- *     deletes on read), a missing or non-numeric timestamp, an empty id, and a click
- *     older than its maximum age are all ignored, so the server never replays a click
- *     the browser would no longer send.
+ *   - Click ids (gclid, gbraid, wbraid, ttclid, rdt_cid, oppref, msclkid, twclid,
+ *     epik, li_fat_id, sccid), as the web SDK 0.24.0 applies them
+ *     (PERSISTED_CLICK_IDS / applyPersistedClickId in velitrack-sdk.js):
+ *       1. a value in the current URL wins (Snap: `ScCid`, then `sccid`), unless the
+ *          SDK cookie already holds that very click past its maximum age (or in the
+ *          unversioned legacy format): then the URL is a replayed bookmark, not a new
+ *          ad click, and nothing is sent;
+ *       2. otherwise the first-party cookie the web SDK persisted (`_gclid`,
+ *          `_gbraid`, `_wbraid`, `_ttclid`, `_axi_msclkid`, `_axi_twclid` for 90 days,
+ *          `_axi_epik` for 60, `_axi_li_fat_id` for 30, `_rdt_cid`, `_oppref`,
+ *          `_axi_sccid` for 28). Cookie values have the format
+ *          "v2|<firstSeenMs>|<clickId>"; only the bare click id is kept. An
+ *          unversioned value (which the web SDK itself deletes on read), a missing or
+ *          non-numeric timestamp, an empty id, and a click older than its maximum age
+ *          are all ignored, so the server never replays a click the browser would no
+ *          longer send;
+ *       3. otherwise, for Microsoft, X, Pinterest and LinkedIn, the cookie the
+ *          platform's own tag writes (VENDOR_CLICK_ID_COOKIES), read only.
  *   - Browser ids (vt_vid, vt_sid, _fbp, _fbc, _ttp, _rdt_uuid, __obref, _ga) are
  *     kept only when they match the format their writer produces; the patterns mirror
  *     the WooCommerce plugin's BrowserIdentifiers and the event worker's
@@ -29,15 +39,42 @@ namespace AxiTrace\Tracking\Model\Identity;
 class BrowserIdentityExtractor
 {
     /**
-     * Click-id cookies written by the web SDK: param name => [cookie name, max age in days].
+     * Click-id cookies written by the web SDK: click id key => [cookie name, max age in
+     * days]. The five added in web SDK 0.24.0 carry an "_axi_" prefix because the plain
+     * names belong to the platforms' own tags.
      */
     public const CLICK_ID_COOKIES = [
-        'gclid'   => ['_gclid', 90],
-        'gbraid'  => ['_gbraid', 90],
-        'wbraid'  => ['_wbraid', 90],
-        'ttclid'  => ['_ttclid', 90],
-        'rdt_cid' => ['_rdt_cid', 28],
-        'oppref'  => ['_oppref', 28],
+        'gclid'     => ['_gclid', 90],
+        'gbraid'    => ['_gbraid', 90],
+        'wbraid'    => ['_wbraid', 90],
+        'ttclid'    => ['_ttclid', 90],
+        'rdt_cid'   => ['_rdt_cid', 28],
+        'oppref'    => ['_oppref', 28],
+        'msclkid'   => ['_axi_msclkid', 90],
+        'twclid'    => ['_axi_twclid', 90],
+        'epik'      => ['_axi_epik', 60],
+        'li_fat_id' => ['_axi_li_fat_id', 30],
+        'sccid'     => ['_axi_sccid', 28],
+    ];
+
+    /**
+     * URL parameters, in priority order, of a click id whose parameter differs from its
+     * key: Snap's own parameter is "ScCid" (query keys are case-sensitive).
+     */
+    public const CLICK_ID_URL_PARAMS = [
+        'sccid' => ['ScCid', 'sccid'],
+    ];
+
+    /**
+     * The cookie the platform's own tag keeps the click id in (UET, the X pixel, the
+     * Pinterest tag, the LinkedIn Insight Tag), read as the last fallback and never
+     * written. Snap documents no such cookie.
+     */
+    public const VENDOR_CLICK_ID_COOKIES = [
+        'msclkid'   => '_uetmsclkid',
+        'twclid'    => '_twclid',
+        'epik'      => '_epik',
+        'li_fat_id' => 'li_fat_id',
     ];
 
     /** Version prefix of the click-id cookie format written by the web SDK. */
@@ -114,11 +151,10 @@ class BrowserIdentityExtractor
             }
         }
 
-        foreach (self::CLICK_ID_COOKIES as $param => [$cookieName, $maxAgeDays]) {
-            $clickId = $this->validClickId($query($param))
-                ?? $this->clickIdFromCookie($cookie($cookieName), $maxAgeDays, $nowMs);
+        foreach (self::CLICK_ID_COOKIES as $key => [$cookieName, $maxAgeDays]) {
+            $clickId = $this->clickId($key, $cookie, $query, $cookieName, $maxAgeDays, $nowMs);
             if ($clickId !== null) {
-                $found[$param] = $clickId;
+                $found[$key] = $clickId;
             }
         }
 
@@ -137,10 +173,69 @@ class BrowserIdentityExtractor
     }
 
     /**
-     * The bare click id held in a web SDK cookie ("v2|<firstSeenMs>|<clickId>"), or
-     * null when the value is unversioned, malformed, empty or older than $maxAgeDays.
+     * One click id of the request, or null (rules 1-3 in the class docblock).
+     *
+     * @param callable(string): ?string $cookie
+     * @param callable(string): ?string $query
      */
-    private function clickIdFromCookie(?string $raw, int $maxAgeDays, int $nowMs): ?string
+    private function clickId(
+        string $key,
+        callable $cookie,
+        callable $query,
+        string $cookieName,
+        int $maxAgeDays,
+        int $nowMs
+    ): ?string {
+        $stored = $cookie($cookieName);
+
+        foreach (self::CLICK_ID_URL_PARAMS[$key] ?? [$key] as $param) {
+            $fromUrl = $this->validClickId($query($param));
+            if ($fromUrl !== null) {
+                return $this->isKnownStaleCookie($stored, $fromUrl, $maxAgeDays, $nowMs) ? null : $fromUrl;
+            }
+        }
+
+        $parsed = $this->parseClickIdCookie($stored);
+        if ($parsed !== null && !$this->isExpired($parsed['firstSeenMs'], $maxAgeDays, $nowMs)) {
+            return $parsed['clickId'];
+        }
+
+        $vendorCookie = self::VENDOR_CLICK_ID_COOKIES[$key] ?? null;
+
+        return $vendorCookie !== null ? $this->vendorClickId($vendorCookie, $cookie($vendorCookie)) : null;
+    }
+
+    /**
+     * True when the SDK cookie already holds this very click past its maximum age, or
+     * holds it in the unversioned legacy format whose age is unknown: the URL is then a
+     * bookmarked or shared link replayed after the click window (web SDK
+     * isKnownStaleCookie).
+     */
+    private function isKnownStaleCookie(?string $raw, string $clickId, int $maxAgeDays, int $nowMs): bool
+    {
+        if ($raw === null || $raw === '') {
+            return false;
+        }
+
+        if (strpos($raw, self::CLICK_ID_COOKIE_VERSION_PREFIX) !== 0) {
+            return trim($raw) === $clickId;
+        }
+
+        $parsed = $this->parseClickIdCookie($raw);
+
+        return $parsed !== null
+            && $parsed['clickId'] === $clickId
+            && $this->isExpired($parsed['firstSeenMs'], $maxAgeDays, $nowMs);
+    }
+
+    /**
+     * A web SDK cookie ("v2|<firstSeenMs>|<clickId>") split into its first-seen time and
+     * bare click id, or null when the value is unversioned, malformed or empty. No age
+     * check.
+     *
+     * @return array{firstSeenMs: int, clickId: string}|null
+     */
+    private function parseClickIdCookie(?string $raw): ?array
     {
         if ($raw === null || strpos($raw, self::CLICK_ID_COOKIE_VERSION_PREFIX) !== 0) {
             return null;
@@ -152,11 +247,49 @@ class BrowserIdentityExtractor
         }
 
         $firstSeenMs = (int) $parts[1];
-        if ($firstSeenMs <= 0 || $nowMs - $firstSeenMs > $maxAgeDays * 86400000) {
+        $clickId = $this->validClickId($parts[2]);
+        if ($firstSeenMs <= 0 || $clickId === null) {
             return null;
         }
 
-        return $this->validClickId($parts[2]);
+        return ['firstSeenMs' => $firstSeenMs, 'clickId' => $clickId];
+    }
+
+    private function isExpired(int $firstSeenMs, int $maxAgeDays, int $nowMs): bool
+    {
+        return $nowMs - $firstSeenMs > $maxAgeDays * 86400000;
+    }
+
+    /**
+     * The click id inside a platform-owned cookie, or null. Formats, as the web SDK's
+     * readVendorClickId() reads them:
+     *   _uetmsclkid      - UET writes "_uet" + msclkid; a bare msclkid is accepted too;
+     *   _twclid          - the X pixel writes JSON {"twclid": "...", ...}; the X
+     *                      server-side tag writes the bare twclid;
+     *   _epik, li_fat_id - the bare click id.
+     */
+    private function vendorClickId(string $cookieName, ?string $raw): ?string
+    {
+        if ($raw === null) {
+            return null;
+        }
+
+        $value = trim($raw);
+        if ($cookieName === '_uetmsclkid' && strpos($value, '_uet') === 0) {
+            $value = substr($value, 4);
+        } elseif ($cookieName === '_twclid' && strpos($value, '{') === 0) {
+            $decoded = json_decode($value, true);
+            $value = is_array($decoded) && isset($decoded['twclid']) && is_string($decoded['twclid'])
+                ? $decoded['twclid']
+                : '';
+        }
+
+        // The web SDK rejects an over-long platform cookie instead of truncating it.
+        if (strlen($value) > self::MAX_CLICK_ID_LENGTH) {
+            return null;
+        }
+
+        return $this->validClickId($value);
     }
 
     private function validClickId(mixed $value): ?string

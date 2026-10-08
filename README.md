@@ -3,7 +3,7 @@
 Server-side tracking module for Magento 2 / Adobe Commerce stores. Forwards
 order, product-view, add-to-cart, and other commerce events to AxiTrace, which
 relays them to Facebook CAPI, TikTok Events API, Google Ads offline conversions,
-and GA4 — server-side, with deterministic event ids that dedupe against any
+and GA4 - server-side, with deterministic event ids that dedupe against any
 client-side pixels you may also be running.
 
 The module itself is **free** under the MIT License. AxiTrace bills the SaaS
@@ -16,12 +16,12 @@ licence check or API call back to AxiTrace for billing purposes.
 - **PHP**: 8.1 / 8.2 / 8.3 / 8.4 (per Magento version matrix)
 - **Themes**: Luma (default), Hyva via the separate
   [`axitrace/module-tracking-hyva`](https://packagist.org/packages/axitrace/module-tracking-hyva) package
-- **Not supported**: Adobe Commerce as Cloud Service (ACCS) — uses App Builder,
+- **Not supported**: Adobe Commerce as Cloud Service (ACCS) - uses App Builder,
   not PHP modules.
 
 ---
 
-## Install (Composer — recommended)
+## Install (Composer - recommended)
 
 ```bash
 composer require axitrace/module-tracking
@@ -33,7 +33,7 @@ bin/magento setup:upgrade
 bin/magento cache:clean
 ```
 
-## Install (ZIP — for hosts without Composer access)
+## Install (ZIP - for hosts without Composer access)
 
 1. Download the latest ZIP from
    [axitrace.com/downloads/axitrace-magento-plugin-latest.zip](https://axitrace.com/downloads/axitrace-magento-plugin-latest.zip).
@@ -43,8 +43,8 @@ bin/magento cache:clean
 
 ## Install (Adobe Commerce Marketplace)
 
-The module is distributed primarily via Composer/Packagist and direct ZIP (above)
-— no Marketplace account is required to install it. An Adobe Commerce Marketplace
+The module is distributed primarily via Composer/Packagist and direct ZIP (above) -
+no Marketplace account is required to install it. An Adobe Commerce Marketplace
 listing may be published later for discovery; if/when it is, you will also be able
 to install with the Marketplace authentication keys from
 [commercemarketplace.adobe.com/customer/accessKeys/](https://commercemarketplace.adobe.com/customer/accessKeys/).
@@ -65,7 +65,7 @@ to install with the Marketplace authentication keys from
 6. **Test Connection**: the button issues an AJAX request to AxiTrace and
    shows a coloured status. Green means you're connected.
 7. **Save Config**.
-8. **Place a test order** in your storefront. Within 1–2 minutes, the Status
+8. **Place a test order** in your storefront. Within 1-2 minutes, the Status
    indicator turns green ("last event N minutes ago") and AxiTrace's dashboard
    shows the order on the events feed.
 
@@ -77,8 +77,8 @@ to install with the Marketplace authentication keys from
 | `view_content` | Storefront pixel on PDP (Luma + Hyva) |
 | `view_category` | Storefront pixel on category page |
 | `product.addToCart` | Storefront pixel via Magento cart events |
-| `begin_checkout` | Storefront pixel on the checkout page, with cart value/currency/item count. Off by default — enable "Checkout started events". |
-| `add_payment_info` | Storefront pixel, best-effort, when the customer reaches the payment step. Off by default — enable "Add payment info events". |
+| `begin_checkout` | Storefront pixel on the checkout page, with cart value/currency/item count. Off by default - enable "Checkout started events". |
+| `add_payment_info` | Storefront pixel, best-effort, when the customer reaches the payment step. Off by default - enable "Add payment info events". |
 | `page.view` | Off by default (high volume) |
 | `transaction.refund` (credit memo) | `sales_order_creditmemo_save_after` observer. Sent only when the AxiTrace secret key is set. |
 | `transaction.refund` (cancellation) | `order_cancel_after` observer, sent with `isCancellation = true`. Sent only when the AxiTrace secret key is set. |
@@ -99,8 +99,13 @@ column (added by `setup:upgrade`):
 - the shopper's IP address and User-Agent;
 - the ad platforms' browser ids: `_fbp`, `_fbc`, `_ttp`, `_rdt_uuid`, `__obref`, `_ga`;
 - every click id the AxiTrace SDK keeps in a first-party cookie: `gclid`, `gbraid`,
-  `wbraid`, `ttclid` (90 days), `rdt_cid` and `oppref` (28 days). A click id in the
-  current URL wins over the stored one, and a click older than its window is not sent.
+  `wbraid`, `ttclid`, `msclkid`, `twclid` (90 days), `epik` (60 days), `li_fat_id`
+  (30 days), `rdt_cid`, `oppref` and `sccid` (28 days). A click id in the current URL
+  wins over the stored one (for Snapchat its `ScCid` parameter, then `sccid`), unless
+  it repeats a stored click whose window has passed (a bookmarked link); a click older
+  than its window is not sent. When neither has the click, the Microsoft, X, Pinterest
+  and LinkedIn click ids are read from the cookie the platform's own tag sets
+  (`_uetmsclkid`, `_twclid`, `_epik`, `li_fat_id`), which is never changed.
 
 Only a request from the shopper's own browser is read: the storefront (`frontend`),
 the Luma checkout's REST call (`webapi_rest`) or GraphQL, and only when the request
@@ -152,9 +157,9 @@ The module ships its own table `axitrace_event_log` (declared via
 
 | column | purpose |
 |--------|---------|
-| `event_id_hash` | UUID v5 from `magento_order:{increment_id}`; UNIQUE — blocks double-fire on async payment auto-invoice flows |
+| `event_id_hash` | UUID v5 from `magento_order:{increment_id}`; UNIQUE - blocks double-fire on async payment auto-invoice flows |
 | `status` | `pending`, `sent`, `failed`, `skipped` |
-| `attempts` | retry counter — capped at 5 by the retry cron |
+| `attempts` | retry counter - capped at 5 by the retry cron |
 | `last_error` | truncated error from ingestion-api |
 
 You can inspect it via any DB client; nothing in it should ever be PII.
@@ -177,7 +182,7 @@ cron), the module needs zero ops intervention.
 bin/magento axitrace:retry-failed
 ```
 
-Equivalent effect to one tick of the retry cron — useful after an
+Equivalent effect to one tick of the retry cron - useful after an
 ingestion-api incident.
 
 ## Troubleshooting
@@ -197,4 +202,4 @@ or email `info@axitrace.com`.
 
 ## License
 
-MIT — see [LICENSE.md](./LICENSE.md).
+MIT - see [LICENSE.md](./LICENSE.md).
