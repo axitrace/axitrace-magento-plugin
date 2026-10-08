@@ -5,6 +5,7 @@
 "Advanced","Advanced"
 "Enable AxiTrace tracking","Enable AxiTrace tracking"
 "Workspace public key","Workspace public key"
+"AxiTrace secret key (optional)","AxiTrace secret key (optional)"
 "Tracking domain (optional)","Tracking domain (optional)"
 "Auto-Detect Domain","Auto-Detect Domain"
 "Test Connection","Test Connection"

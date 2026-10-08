@@ -30,7 +30,7 @@ namespace AxiTrace\Tracking\Model\Consent;
  * same way (a truthy entry for the CURRENT website means "allowed"). Consent
  * given on one website therefore does not leak to another.
  */
-final class CookieRestrictionConsentResolver
+class CookieRestrictionConsentResolver
 {
     /** The only value meaning "the visitor accepted cookies". */
     public const DECISION_GRANTED = 'granted';

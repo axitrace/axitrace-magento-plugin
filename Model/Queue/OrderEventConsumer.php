@@ -6,10 +6,14 @@ namespace AxiTrace\Tracking\Model\Queue;
 
 use AxiTrace\Tracking\Api\EventLogRepositoryInterface;
 use AxiTrace\Tracking\Exception\IngestionUnreachableException;
+use AxiTrace\Tracking\Exception\SecretKeyRejectedException;
 use AxiTrace\Tracking\Model\Config\ModuleConfig;
 use AxiTrace\Tracking\Model\EventLog\EventLog;
 use AxiTrace\Tracking\Model\HttpClient\IngestionApiClient;
+use AxiTrace\Tracking\Model\Identity\BrowserIdentity;
+use AxiTrace\Tracking\Model\Identity\OrderBrowserIdentityStore;
 use AxiTrace\Tracking\Model\Normalizer\OrderEventNormalizer;
+use Magento\Sales\Api\Data\OrderInterface;
 use Magento\Sales\Api\OrderRepositoryInterface;
 use Psr\Log\LoggerInterface;
 
@@ -23,6 +27,12 @@ use Psr\Log\LoggerInterface;
  *   4. POST via IngestionApiClient with explicit 5s/3s timeouts.
  *   5. Update axitrace_event_log row to `sent` or `failed`.
  *
+ * Secret key: when the merchant configured the optional AxiTrace secret key, the
+ * payload carries product unit costs and the request is authenticated with it. If
+ * ingestion rejects the key (401), the purchase is sent again without the key and
+ * without costs in the same run: a wrong key must cost the merchant profit data,
+ * never the purchase itself. The rejection is logged critical by the client.
+ *
  * Catches \Throwable - Magento's MysqlMq has a silent-drop bug; if we rethrow,
  * the message vanishes. Instead we update the log row, log critically, and
  * return normally so the retry cron handles re-publish.
@@ -35,6 +45,7 @@ class OrderEventConsumer
         private readonly OrderEventNormalizer $normalizer,
         private readonly IngestionApiClient $client,
         private readonly ModuleConfig $config,
+        private readonly OrderBrowserIdentityStore $identityStore,
         private readonly LoggerInterface $logger,
     ) {
     }
@@ -63,22 +74,42 @@ class OrderEventConsumer
                 return;
             }
 
-            $fbp = isset($payload['fbp']) ? (string) $payload['fbp'] : null;
-            $fbc = isset($payload['fbc']) ? (string) $payload['fbc'] : null;
+            $browser = $this->resolveBrowserIdentity($order, $payload);
 
             $consent = isset($payload['consent']) ? (string) $payload['consent'] : null;
+
+            $storeId = (int) $order->getStoreId();
+            $secretKey = $this->config->getSecretKey($storeId);
 
             $eventData = $this->normalizer->normalize(
                 $order,
                 $eventIdHash,
                 $workspaceKey,
-                $fbp,
-                $fbc,
-                $consent
+                $browser,
+                $consent,
+                $secretKey !== ''
             );
             $payloadJson = (string) json_encode($eventData, JSON_THROW_ON_ERROR);
 
-            $this->client->sendOrderEvent($payloadJson);
+            try {
+                $this->client->sendOrderEvent($payloadJson, $secretKey, $storeId);
+            } catch (SecretKeyRejectedException $rejected) {
+                $eventData = $this->normalizer->normalize(
+                    $order,
+                    $eventIdHash,
+                    $workspaceKey,
+                    $browser,
+                    $consent,
+                    false
+                );
+                $payloadJson = (string) json_encode($eventData, JSON_THROW_ON_ERROR);
+
+                $this->client->sendOrderEvent($payloadJson, '', $storeId);
+                $this->logger->warning(
+                    'AxiTrace consumer: secret key rejected, purchase ' . $eventIdHash
+                    . ' sent without product costs.'
+                );
+            }
 
             $this->markSent($row, strlen($payloadJson));
         } catch (IngestionUnreachableException $e) {
@@ -94,6 +125,32 @@ class OrderEventConsumer
                 ['exception' => $e]
             );
         }
+    }
+
+    /**
+     * The shopper's browser identity for this purchase, from three sources, each
+     * overriding the one before it:
+     *   1. `fbp` / `fbc` at the top of a message published by module 0.1.3 - 0.3.0
+     *      and still queued when 0.4.0 was installed;
+     *   2. the identity stored on the order at placement time;
+     *   3. the `browser` object of the message (the observer's resolved identity).
+     *
+     * @param array<string, mixed> $payload
+     */
+    private function resolveBrowserIdentity(OrderInterface $order, array $payload): BrowserIdentity
+    {
+        $legacy = BrowserIdentity::fromArray([
+            'fbp' => $payload['fbp'] ?? null,
+            'fbc' => $payload['fbc'] ?? null,
+        ]);
+
+        $stored = $this->identityStore->read($order) ?? BrowserIdentity::empty();
+
+        $fromMessage = isset($payload['browser']) && is_array($payload['browser'])
+            ? BrowserIdentity::fromArray($payload['browser'])
+            : BrowserIdentity::empty();
+
+        return $legacy->mergedWith($stored)->mergedWith($fromMessage);
     }
 
     /**

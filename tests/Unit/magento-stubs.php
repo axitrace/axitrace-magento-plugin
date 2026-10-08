@@ -16,8 +16,45 @@ declare(strict_types=1);
 
 namespace Magento\Framework\Model {
     if (!class_exists(AbstractModel::class)) {
+        /**
+         * Mirrors DataObject's magic get/set so entity stand-ins (EventLog) can be
+         * used as real objects in tests.
+         */
         class AbstractModel
         {
+            /** @var array<string, mixed> */
+            protected array $stubData = [];
+
+            /** @return mixed */
+            public function getData(?string $key = null)
+            {
+                return $key === null ? $this->stubData : ($this->stubData[$key] ?? null);
+            }
+
+            /** @return $this */
+            public function setData(string $key, mixed $value = null)
+            {
+                $this->stubData[$key] = $value;
+
+                return $this;
+            }
+
+            /**
+             * @param array<int, mixed> $args
+             * @return mixed
+             */
+            public function __call(string $method, array $args)
+            {
+                $key = strtolower((string) preg_replace('/(.)([A-Z])/', '$1_$2', substr($method, 3)));
+                if (str_starts_with($method, 'get')) {
+                    return $this->getData($key);
+                }
+                if (str_starts_with($method, 'set')) {
+                    return $this->setData($key, $args[0] ?? null);
+                }
+
+                throw new \BadMethodCallException($method);
+            }
         }
     }
 }
@@ -54,6 +91,96 @@ namespace Magento\Framework\Event {
     }
 }
 
+namespace Magento\Framework {
+    if (!class_exists(Phrase::class)) {
+        class Phrase
+        {
+            /** @param array<int|string, mixed> $arguments */
+            public function __construct(private string $text, private array $arguments = [])
+            {
+            }
+
+            public function render(): string
+            {
+                $result = $this->text;
+                foreach ($this->arguments as $key => $value) {
+                    $result = str_replace('%' . (is_int($key) ? $key + 1 : $key), (string) $value, $result);
+                }
+
+                return $result;
+            }
+        }
+    }
+}
+
+namespace Magento\Framework\Exception {
+    if (!class_exists(LocalizedException::class)) {
+        class LocalizedException extends \Exception
+        {
+            public function __construct(\Magento\Framework\Phrase $phrase, ?\Throwable $cause = null, int $code = 0)
+            {
+                parent::__construct($phrase->render(), $code, $cause);
+            }
+        }
+    }
+}
+
+namespace Magento\Framework\Stdlib\DateTime {
+    if (!class_exists(DateTime::class)) {
+        class DateTime
+        {
+            public function gmtDate($format = null, $input = null)
+            {
+                return gmdate($format ?? 'Y-m-d H:i:s');
+            }
+        }
+    }
+}
+
+namespace Magento\Framework\HTTP\Client {
+    if (!class_exists(Curl::class)) {
+        class Curl
+        {
+            public function setOption($name, $value)
+            {
+            }
+
+            public function addHeader($name, $value)
+            {
+            }
+
+            public function post($uri, $params)
+            {
+            }
+
+            public function get($uri)
+            {
+            }
+
+            public function getStatus()
+            {
+                return 200;
+            }
+
+            public function getBody()
+            {
+                return '';
+            }
+        }
+    }
+
+    // Magento generates this factory at runtime.
+    if (!class_exists(CurlFactory::class)) {
+        class CurlFactory
+        {
+            public function create(array $data = []): Curl
+            {
+                return new Curl();
+            }
+        }
+    }
+}
+
 namespace Magento\Framework\Stdlib {
     if (!interface_exists(CookieManagerInterface::class)) {
         interface CookieManagerInterface
@@ -76,6 +203,16 @@ namespace Magento\Framework\App\Config {
     }
 }
 
+namespace Magento\Framework\Encryption {
+    if (!interface_exists(EncryptorInterface::class)) {
+        interface EncryptorInterface
+        {
+            /** @return string */
+            public function decrypt($data);
+        }
+    }
+}
+
 namespace Magento\Framework\App {
     if (!class_exists(State::class)) {
         class State
@@ -83,6 +220,51 @@ namespace Magento\Framework\App {
             public function getAreaCode(): string
             {
                 return 'frontend';
+            }
+        }
+    }
+}
+
+namespace Magento\Framework\App\Request {
+    if (!class_exists(Http::class)) {
+        class Http
+        {
+            /** @return mixed */
+            public function getQueryValue($name = null, $default = null)
+            {
+                return $default;
+            }
+
+            /** @return mixed */
+            public function getServerValue($name = null, $default = null)
+            {
+                return $default;
+            }
+        }
+    }
+}
+
+namespace Magento\Framework\HTTP\PhpEnvironment {
+    if (!class_exists(RemoteAddress::class)) {
+        class RemoteAddress
+        {
+            /** @return string|false */
+            public function getRemoteAddress(bool $ipToLong = false)
+            {
+                return false;
+            }
+        }
+    }
+}
+
+namespace Magento\Framework\HTTP {
+    if (!class_exists(Header::class)) {
+        class Header
+        {
+            /** @return string */
+            public function getHttpUserAgent($clean = true)
+            {
+                return '';
             }
         }
     }
@@ -149,6 +331,14 @@ namespace Magento\Sales\Api\Data {
             public function getRemoteIp();
 
             public function getBillingAddress();
+
+            public function getBaseCurrencyCode();
+
+            public function getTaxAmount();
+
+            public function getShippingInclTax();
+
+            public function getTotalCanceled();
         }
     }
 
@@ -164,6 +354,46 @@ namespace Magento\Sales\Api\Data {
             public function getQtyOrdered();
 
             public function getPrice();
+
+            public function getBaseCost();
+
+            public function getParentItem();
+
+            public function getQtyCanceled();
+
+            public function getRowTotalInclTax();
+
+            public function getDiscountAmount();
+        }
+    }
+
+    if (!interface_exists(CreditmemoInterface::class)) {
+        interface CreditmemoInterface
+        {
+            public function getEntityId();
+
+            public function getGrandTotal();
+
+            public function getCreatedAt();
+
+            public function getState();
+
+            public function getItems();
+        }
+    }
+
+    if (!interface_exists(CreditmemoItemInterface::class)) {
+        interface CreditmemoItemInterface
+        {
+            public function getProductId();
+
+            public function getSku();
+
+            public function getQty();
+
+            public function getRowTotalInclTax();
+
+            public function getDiscountAmount();
         }
     }
 }
@@ -238,11 +468,100 @@ namespace Magento\Sales\Model {
                 return null;
             }
 
+            public function getBaseCurrencyCode()
+            {
+                return null;
+            }
+
+            public function getTaxAmount()
+            {
+                return null;
+            }
+
+            public function getShippingInclTax()
+            {
+                return null;
+            }
+
+            public function getTotalCanceled()
+            {
+                return null;
+            }
+
             /** @return array<int, \Magento\Sales\Api\Data\OrderItemInterface> */
             public function getAllVisibleItems(): array
             {
                 return [];
             }
+        }
+    }
+}
+
+namespace Magento\Catalog\Model {
+    if (!class_exists(Product::class)) {
+        class Product extends \Magento\Framework\Model\AbstractModel
+        {
+        }
+    }
+}
+
+namespace Magento\Sales\Model\Order {
+    if (!class_exists(Item::class)) {
+        class Item extends \Magento\Framework\Model\AbstractModel implements
+            \Magento\Sales\Api\Data\OrderItemInterface
+        {
+            public function getProductId() { return null; }
+            public function getSku() { return null; }
+            public function getName() { return null; }
+            public function getQtyOrdered() { return null; }
+            public function getPrice() { return null; }
+            public function getBaseCost() { return null; }
+            public function getParentItem() { return null; }
+            public function getQtyCanceled() { return null; }
+            public function getRowTotalInclTax() { return null; }
+            public function getDiscountAmount() { return null; }
+
+            /** @return array<int, \Magento\Sales\Model\Order\Item> */
+            public function getChildrenItems() { return []; }
+
+            /** @return \Magento\Catalog\Model\Product|null */
+            public function getProduct() { return null; }
+        }
+    }
+
+    if (!class_exists(Creditmemo::class)) {
+        class Creditmemo extends \Magento\Framework\Model\AbstractModel implements
+            \Magento\Sales\Api\Data\CreditmemoInterface
+        {
+            public const STATE_OPEN     = 1;
+            public const STATE_REFUNDED = 2;
+            public const STATE_CANCELED = 3;
+
+            public function getEntityId() { return null; }
+            public function getGrandTotal() { return null; }
+            public function getCreatedAt() { return null; }
+            public function getState() { return null; }
+            public function getItems() { return []; }
+
+            /** @return \Magento\Sales\Model\Order|null */
+            public function getOrder() { return null; }
+        }
+    }
+}
+
+namespace Magento\Sales\Model\Order\Creditmemo {
+    if (!class_exists(Item::class)) {
+        class Item extends \Magento\Framework\Model\AbstractModel implements
+            \Magento\Sales\Api\Data\CreditmemoItemInterface
+        {
+            public function getProductId() { return null; }
+            public function getSku() { return null; }
+            public function getQty() { return null; }
+            public function getRowTotalInclTax() { return null; }
+            public function getDiscountAmount() { return null; }
+
+            /** @return \Magento\Sales\Model\Order\Item|null */
+            public function getOrderItem() { return null; }
         }
     }
 }

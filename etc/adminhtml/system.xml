@@ -57,6 +57,21 @@
                     </depends>
                 </field>
 
+                <field id="secret_key"
+                       translate="label comment"
+                       type="obscure"
+                       sortOrder="25"
+                       showInDefault="1"
+                       showInWebsite="1"
+                       showInStore="1">
+                    <label>AxiTrace secret key (optional)</label>
+                    <backend_model>Magento\Config\Model\Config\Backend\Encrypted</backend_model>
+                    <comment>Needed only for profit tracking. When set, purchase events include each line's unit cost and refunds and cancellations are sent to AxiTrace. The cost is taken, in this order, from the order item's cost recorded when the order was placed (for a configurable product, the simple product that was bought, then the parent line), then from the product's current Cost attribute; it is sent only when the order currency equals the base currency. Find the key in AxiTrace under Settings - Container Information - Secret Key. Keep it private - it is never sent to the storefront, and it is used only when the API base URL uses https.</comment>
+                    <depends>
+                        <field id="enabled">1</field>
+                    </depends>
+                </field>
+
                 <field id="tracking_domain"
                        translate="label comment"
                        type="text"
@@ -169,7 +184,7 @@
 
                 <field id="api_base_url" translate="label comment" type="text" sortOrder="10" showInDefault="1" showInWebsite="1" showInStore="1">
                     <label>API base URL</label>
-                    <comment>Default: https://stat.axitrace.com. Override only for AxiTrace-supplied test environments.</comment>
+                    <comment>Default: https://stat.axitrace.com. Override only for AxiTrace-supplied test environments. The secret key is sent only to an https URL; with any other URL purchases go without product costs and refunds are not sent.</comment>
                 </field>
 
                 <field id="log_level" translate="label" type="select" sortOrder="20" showInDefault="1" showInWebsite="1" showInStore="1">

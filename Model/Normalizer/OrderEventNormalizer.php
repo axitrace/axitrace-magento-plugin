@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AxiTrace\Tracking\Model\Normalizer;
 
 use AxiTrace\Tracking\Model\Consent\CookieRestrictionConsentResolver;
+use AxiTrace\Tracking\Model\Identity\BrowserIdentity;
 use Magento\Sales\Api\Data\OrderInterface;
 use Magento\Sales\Api\Data\OrderItemInterface;
 
@@ -15,54 +16,84 @@ use Magento\Sales\Api\Data\OrderItemInterface;
  *   {
  *     event, eventSalt, transactionId, orderId, incrementId,
  *     workspace_public_key, source: "magento", timestamp, ip, userAgent,
+ *     userId?, sessionId?,           // AxiTrace vt_vid / vt_sid, when captured
  *     pluginVersion, sdkVersion,
  *     billingCity, billingCountry, billingZip,
  *     data: {
  *       client: { email, phone },
- *       products: [{ productId, sku, name, quantity, price, currency }],
+ *       products: [{ productId, externalId, sku, name, quantity, price, currency,
+ *                    unitCost?: { amount, currency } }],
  *       revenue: { amount, currency },
  *       value: <float>,
- *       fbp?: string, fbc?: string,  // present only when captured at request time
+ *       tax: <float>, shipping: <float>, taxesIncluded: true,
+ *       fbp?, fbc?, ttp?, rdt_uuid?, obref?, _ga?,             // browser ids
+ *       gclid?, gbraid?, wbraid?, ttclid?, rdt_cid?, oppref?,  // click ids
  *       consent?: "granted"|"denied" // present only when the store asks for consent
  *     }
  *   }
+ *
+ * Identity: `userId` / `sessionId` carry the AxiTrace visitor and session cookies
+ * (vt_vid / vt_sid) captured when the order was placed; ingestion stores the purchase
+ * under that visitor, which is what links it to the visitor profile and its ad clicks
+ * (the same contract as the WooCommerce and Shopware plugins and the PHP SDK). `ip`
+ * and `userAgent` are the shopper's own; with no captured User-Agent the field stays
+ * empty and ingestion falls back to the sending request's, as before 0.4.0. Every
+ * browser and click id travels as a bare value under `data`, named exactly as the
+ * event worker reads it. Each key is present only when captured.
  *
  * PII is forwarded in plain text per project memory - the Facebook CAPI PHP SDK
  * and TikTok Events API auto-hash; only `external_id` requires manual SHA-256.
  *
  * Currency: read from $order->getOrderCurrencyCode() (presentation currency),
  * not base currency - matches AstrophotoMarket lesson logged in project memory.
+ *
+ * Profit fields: `tax` (order tax amount) and `shipping` (shipping charged including
+ * its tax) are plain numbers in the order currency, like `revenue`. `taxesIncluded`
+ * is always true because the revenue sent is Magento's grand total, which always
+ * contains the tax. `unitCost` is cost data: it is written only when the caller says
+ * the request is authenticated with the workspace secret key (ingestion strips cost
+ * fields from anything else), and only when the store's base currency (the currency
+ * of Magento product costs) equals the order currency, because AxiTrace rejects a
+ * cost in another currency than the revenue.
  */
 class OrderEventNormalizer
 {
-    private const PLUGIN_VERSION = '0.2.0';
+    private const PLUGIN_VERSION = '0.4.0';
     private const SDK_VERSION    = 'magento-1.0';
     private const SOURCE         = 'magento';
 
+    public function __construct(
+        private readonly OrderLineCostResolver $lineCostResolver,
+    ) {
+    }
+
     /**
-     * @param string|null $fbp Validated Meta Browser ID cookie (_fbp), captured at request
-     *                         time by OrderStateTransitionObserver. Null when absent/invalid.
-     * @param string|null $fbc Validated Meta Click ID cookie (_fbc), same capture point.
+     * @param BrowserIdentity|null $browser The shopper's browser identity captured when the
+     *                                      order was placed. Null when there is none.
      * @param string|null $consent The visitor's Cookie Restriction Mode decision
-     *                             ('granted' / 'denied'), same capture point. Null when
-     *                             this purchase states nothing about consent.
+     *                             ('granted' / 'denied'), captured by
+     *                             OrderStateTransitionObserver. Null when this purchase
+     *                             states nothing about consent.
+     * @param bool $includeCosts True only when the request will carry the workspace
+     *                           secret key; adds `unitCost` to the lines that have one.
      * @return array<string, mixed>
      */
     public function normalize(
         OrderInterface $order,
         string $eventIdHash,
         string $workspacePublicKey,
-        ?string $fbp = null,
-        ?string $fbc = null,
+        ?BrowserIdentity $browser = null,
         ?string $consent = null,
+        bool $includeCosts = false,
     ): array {
         $billing = $order->getBillingAddress();
         $orderCurrency = (string) $order->getOrderCurrencyCode();
+        $costsAllowed = $includeCosts && $this->costCurrencyMatches($order, $orderCurrency);
 
         $products = [];
         foreach ($order->getAllVisibleItems() as $item) {
             if ($item instanceof OrderItemInterface) {
-                $products[] = [
+                $line = [
                     'productId' => (string) $item->getProductId(),
                     'sku'       => (string) $item->getSku(),
                     'name'      => (string) $item->getName(),
@@ -70,6 +101,23 @@ class OrderEventNormalizer
                     'price'     => (float) $item->getPrice(),
                     'currency'  => $orderCurrency,
                 ];
+
+                $externalId = $this->lineCostResolver->externalId($item);
+                if ($externalId !== '') {
+                    $line['externalId'] = $externalId;
+                }
+
+                if ($costsAllowed) {
+                    $unitCost = $this->lineCostResolver->baseUnitCost($item);
+                    if ($unitCost !== null) {
+                        $line['unitCost'] = [
+                            'amount'   => round($unitCost, 4),
+                            'currency' => $orderCurrency,
+                        ];
+                    }
+                }
+
+                $products[] = $line;
             }
         }
 
@@ -86,15 +134,16 @@ class OrderEventNormalizer
                 'currency' => $orderCurrency,
             ],
             'value' => $revenueAmount,
+            'tax' => round((float) $order->getTaxAmount(), 4),
+            'shipping' => round((float) $order->getShippingInclTax(), 4),
+            'taxesIncluded' => true,
         ];
 
-        // Omitted entirely when absent so the payload is byte-identical to today for
-        // stores without their own Meta browser pixel (backward compatibility).
-        if ($fbp !== null && $fbp !== '') {
-            $data['fbp'] = $fbp;
-        }
-        if ($fbc !== null && $fbc !== '') {
-            $data['fbc'] = $fbc;
+        $browser ??= BrowserIdentity::empty();
+
+        // Browser and click ids, each omitted when it was not captured.
+        foreach ($browser->signals() as $key => $value) {
+            $data[$key] = $value;
         }
 
         // The visitor's Cookie Restriction Mode decision. AxiTrace's workspace consent
@@ -109,7 +158,7 @@ class OrderEventNormalizer
             $data['consent'] = $consent;
         }
 
-        return [
+        $event = [
             'event'                 => 'transaction.charge',
             'eventSalt'             => $eventIdHash,
             'event_id'              => $eventIdHash,
@@ -119,8 +168,10 @@ class OrderEventNormalizer
             'workspace_public_key'  => $workspacePublicKey,
             'source'                => self::SOURCE,
             'timestamp'             => gmdate('Y-m-d\TH:i:s\Z'),
-            'ip'                    => (string) ($order->getRemoteIp() ?? ''),
-            'userAgent'             => '',
+            'ip'                    => $browser->ip() !== ''
+                ? $browser->ip()
+                : (string) ($order->getRemoteIp() ?? ''),
+            'userAgent'             => $browser->userAgent(),
             'pluginVersion'         => self::PLUGIN_VERSION,
             'sdkVersion'            => self::SDK_VERSION,
             'billingCity'           => $billing !== null ? (string) $billing->getCity() : '',
@@ -128,5 +179,26 @@ class OrderEventNormalizer
             'billingZip'            => $billing !== null ? (string) $billing->getPostcode() : '',
             'data'                  => $data,
         ];
+
+        if ($browser->visitorId() !== '') {
+            $event['userId'] = $browser->visitorId();
+        }
+        if ($browser->sessionId() !== '') {
+            $event['sessionId'] = $browser->sessionId();
+        }
+
+        return $event;
+    }
+
+    /**
+     * Magento keeps product costs in the base currency. They may be sent only when
+     * the order was placed in that same currency; a cost converted here with the
+     * order's own rate would be a guess AxiTrace could not tell from a real cost.
+     */
+    private function costCurrencyMatches(OrderInterface $order, string $orderCurrency): bool
+    {
+        $baseCurrency = (string) $order->getBaseCurrencyCode();
+
+        return $orderCurrency !== '' && strtoupper($baseCurrency) === strtoupper($orderCurrency);
     }
 }

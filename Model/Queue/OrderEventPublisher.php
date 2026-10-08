@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AxiTrace\Tracking\Model\Queue;
 
 use AxiTrace\Tracking\Model\Consent\CookieRestrictionConsentResolver;
+use AxiTrace\Tracking\Model\Identity\BrowserIdentity;
 use Magento\Framework\MessageQueue\PublisherInterface;
 use Magento\Sales\Api\Data\OrderInterface;
 
@@ -25,18 +26,18 @@ class OrderEventPublisher
     }
 
     /**
-     * @param string|null $fbp Validated Meta Browser ID cookie (_fbp), captured at request
-     *                         time by OrderStateTransitionObserver. Null when absent/invalid.
-     * @param string|null $fbc Validated Meta Click ID cookie (_fbc), same capture point.
+     * @param BrowserIdentity|null $browser The shopper's browser identity (visitor/session
+     *                                      ids, IP, User-Agent, browser and click ids),
+     *                                      as resolved by OrderStateTransitionObserver.
+     *                                      Null or empty when there is none.
      * @param string|null $consent The visitor's Cookie Restriction Mode decision
-     *                             ('granted' / 'denied'), captured at the same point.
+     *                             ('granted' / 'denied'), captured by the observer.
      *                             Null when this request states nothing about consent.
      */
     public function publishOrder(
         OrderInterface $order,
         string $eventIdHash,
-        ?string $fbp = null,
-        ?string $fbc = null,
+        ?BrowserIdentity $browser = null,
         ?string $consent = null,
     ): void {
         $payload = [
@@ -47,13 +48,11 @@ class OrderEventPublisher
             'state'         => (string) $order->getState(),
         ];
 
-        // Omitted entirely when absent so consumers of older messages (and stores without
-        // their own Meta browser pixel) see exactly today's payload shape.
-        if ($fbp !== null) {
-            $payload['fbp'] = $fbp;
-        }
-        if ($fbc !== null) {
-            $payload['fbc'] = $fbc;
+        // Omitted entirely when absent. The consumer also reads the identity stored on
+        // the order, so a message without it (the retry cron re-publishes without one)
+        // still sends the purchase with the shopper's identity.
+        if ($browser !== null && !$browser->isEmpty()) {
+            $payload['browser'] = $browser->toArray();
         }
 
         // Same rule for the consent state: a store with Cookie Restriction Mode off,

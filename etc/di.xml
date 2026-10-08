@@ -30,7 +30,43 @@
         </arguments>
     </type>
 
+    <type name="AxiTrace\Tracking\Observer\CaptureBrowserIdentityObserver">
+        <arguments>
+            <argument name="logger" xsi:type="object">AxiTrace\Tracking\Logger\Logger</argument>
+        </arguments>
+    </type>
+
+    <type name="AxiTrace\Tracking\Model\Identity\OrderBrowserIdentityStore">
+        <arguments>
+            <argument name="logger" xsi:type="object">AxiTrace\Tracking\Logger\Logger</argument>
+        </arguments>
+    </type>
+
     <type name="AxiTrace\Tracking\Model\Queue\OrderEventConsumer">
+        <arguments>
+            <argument name="logger" xsi:type="object">AxiTrace\Tracking\Logger\Logger</argument>
+        </arguments>
+    </type>
+
+    <type name="AxiTrace\Tracking\Model\Refund\RefundSender">
+        <arguments>
+            <argument name="logger" xsi:type="object">AxiTrace\Tracking\Logger\Logger</argument>
+        </arguments>
+    </type>
+
+    <type name="AxiTrace\Tracking\Observer\CreditmemoRefundObserver">
+        <arguments>
+            <argument name="logger" xsi:type="object">AxiTrace\Tracking\Logger\Logger</argument>
+        </arguments>
+    </type>
+
+    <type name="AxiTrace\Tracking\Observer\OrderCancelObserver">
+        <arguments>
+            <argument name="logger" xsi:type="object">AxiTrace\Tracking\Logger\Logger</argument>
+        </arguments>
+    </type>
+
+    <type name="AxiTrace\Tracking\Model\Config\ModuleConfig">
         <arguments>
             <argument name="logger" xsi:type="object">AxiTrace\Tracking\Logger\Logger</argument>
         </arguments>

@@ -80,9 +80,57 @@ to install with the Marketplace authentication keys from
 | `begin_checkout` | Storefront pixel on the checkout page, with cart value/currency/item count. Off by default — enable "Checkout started events". |
 | `add_payment_info` | Storefront pixel, best-effort, when the customer reaches the payment step. Off by default — enable "Add payment info events". |
 | `page.view` | Off by default (high volume) |
+| `transaction.refund` (credit memo) | `sales_order_creditmemo_save_after` observer. Sent only when the AxiTrace secret key is set. |
+| `transaction.refund` (cancellation) | `order_cancel_after` observer, sent with `isCancellation = true`. Sent only when the AxiTrace secret key is set. |
 
 PII (email, phone) is forwarded in **plain text** server-to-server; Facebook's
 PHP SDK and TikTok's API hash internally per their requirements.
+
+### Linking the purchase to the shopper
+
+The purchase is sent from the queue consumer, long after the shopper's request is
+gone. So when the order is placed, a `sales_order_place_after` observer stores the
+shopper's browser identity on the order, in the `sales_order.axitrace_browser_identity`
+column (added by `setup:upgrade`):
+
+- the AxiTrace visitor and session ids (`vt_vid`, `vt_sid` cookies of the AxiTrace
+  JavaScript SDK), sent as `userId` / `sessionId`. This is what links the purchase to
+  the visitor's profile and to the ad clicks of that visitor;
+- the shopper's IP address and User-Agent;
+- the ad platforms' browser ids: `_fbp`, `_fbc`, `_ttp`, `_rdt_uuid`, `__obref`, `_ga`;
+- every click id the AxiTrace SDK keeps in a first-party cookie: `gclid`, `gbraid`,
+  `wbraid`, `ttclid` (90 days), `rdt_cid` and `oppref` (28 days). A click id in the
+  current URL wins over the stored one, and a click older than its window is not sent.
+
+Only a request from the shopper's own browser is read: the storefront (`frontend`),
+the Luma checkout's REST call (`webapi_rest`) or GraphQL, and only when the request
+carries cookies. An order created in the admin, by a payment webhook or by an ERP
+through the API stores nothing, so the merchant's own cookies are never attached to a
+purchase. Each value is validated and left out when absent.
+
+## Profit tracking (optional)
+
+AxiTrace can report profit and POAS (Profit on Ad Spend) next to revenue and ROAS.
+To feed it from Magento, paste your workspace **secret key** into
+**Stores > Configuration > AxiTrace > AxiTrace secret key (optional)**. In AxiTrace
+it is under **Settings**, in the **Container Information** card, as **Secret Key**.
+The field is encrypted at rest, never reaches the storefront and is sent only to an
+https API base URL. With the key set:
+
+- Purchase events carry each line's unit cost, taken in this order: the order item's
+  cost recorded when the order was placed (for a configurable product the simple
+  product that was bought, then the parent line), then the product's current
+  **Cost** attribute (the bought product, then its parent). Costs are sent only when the order currency equals the store's
+  base currency; otherwise AxiTrace uses the costs from your AxiTrace cost catalog.
+- Credit memos and order cancellations are sent to AxiTrace, where they reduce the
+  order's profit. A full cancellation reverses the whole order, a partial one only
+  the canceled lines; all amounts are gross, in the order currency. Revenue and
+  ROAS stay unchanged.
+
+Every purchase also carries the order tax, the shipping charged (including its tax)
+and a product identifier `magento:<product id>` (the simple product of a configurable
+line), whether or not the key is set. If AxiTrace rejects the key, the purchase is
+sent again without costs and the error is written to `var/log/axitrace.log`.
 
 ## Operations
 

@@ -11,6 +11,9 @@ use AxiTrace\Tracking\Model\Consent\CookieRestrictionConsentResolver;
 use AxiTrace\Tracking\Model\EventId\UuidV5Generator;
 use AxiTrace\Tracking\Model\EventLog\EventLog;
 use AxiTrace\Tracking\Model\EventLog\EventLogFactory;
+use AxiTrace\Tracking\Model\Identity\BrowserIdentity;
+use AxiTrace\Tracking\Model\Identity\BrowserIdentityCapture;
+use AxiTrace\Tracking\Model\Identity\OrderBrowserIdentityStore;
 use AxiTrace\Tracking\Model\Queue\OrderEventPublisher;
 use Magento\Framework\App\Config\ScopeConfigInterface;
 use Magento\Framework\App\State;
@@ -35,14 +38,16 @@ use Psr\Log\LoggerInterface;
  *   3. Try/catch wrap - the observer MUST NOT bubble; any throw would roll back the
  *      Magento sales order save transaction.
  *
- * fbp/fbc capture: this observer is the only request-scoped point in the purchase
- * dispatch flow - OrderEventConsumer::process() runs fully asynchronously (MysqlMq
- * cron consumer) with no HTTP request/cookie access. The customer's own Meta browser
- * pixel cookies (_fbp/_fbc) are therefore read here, validated, and embedded directly
- * in the queue message so OrderEventNormalizer can forward them later. Coverage caveat:
- * for payment methods that confirm asynchronously via a server-to-server webhook (not
- * the customer's own browser), this request has no customer cookies either - this is
- * a best-effort enrichment, never a hard requirement for the purchase event.
+ * Browser identity: the shopper's AxiTrace visitor/session ids, IP, User-Agent, ad
+ * platform browser ids and persisted click ids are captured when the order is placed
+ * (CaptureBrowserIdentityObserver, sales_order_place_after) and stored on the order.
+ * This observer often runs in a request that is NOT the shopper's (an admin invoice,
+ * a payment webhook), so it reads the stored identity first. Only for an order that
+ * has none (placed before module 0.4.0, or through a path that skips Order::place())
+ * does it fall back to the current request, through the same BrowserIdentityCapture
+ * guard, which yields nothing outside the shopper's own browser request. Before 0.4.0
+ * this observer read _fbp/_fbc from whatever request it ran in, so an admin invoice
+ * could attach the merchant's own Meta cookies to the buyer's purchase.
  *
  * Consent capture: for the same reason the Cookie Restriction Mode decision is read
  * here and travels with the queue message. CookieRestrictionConsentResolver holds the
@@ -52,18 +57,6 @@ use Psr\Log\LoggerInterface;
  */
 class OrderStateTransitionObserver implements ObserverInterface
 {
-    /**
-     * Facebook Browser ID cookie format: fb.1.<timestamp>.<random_digits>
-     * Mirrors UserIdentityService::isValidFbp() in event-worker.
-     */
-    private const FBP_PATTERN = '/^fb\.\d+\.\d+\.\d+$/';
-
-    /**
-     * Facebook Click ID cookie format: fb.1.<timestamp>.<fbclid>
-     * Mirrors UserIdentityService::isValidFbc() in event-worker.
-     */
-    private const FBC_PATTERN = '/^fb\.\d+\.\d+\.[A-Za-z0-9_-]+$/';
-
     public function __construct(
         private readonly ModuleConfig $config,
         private readonly EventLogFactory $eventLogFactory,
@@ -75,6 +68,8 @@ class OrderStateTransitionObserver implements ObserverInterface
         private readonly State $appState,
         private readonly StoreManagerInterface $storeManager,
         private readonly CookieRestrictionConsentResolver $consentResolver,
+        private readonly OrderBrowserIdentityStore $identityStore,
+        private readonly BrowserIdentityCapture $identityCapture,
         private readonly LoggerInterface $logger,
     ) {
     }
@@ -152,8 +147,7 @@ class OrderStateTransitionObserver implements ObserverInterface
             $this->publisher->publishOrder(
                 $order,
                 $eventIdHash,
-                $this->readValidatedCookie('_fbp', self::FBP_PATTERN),
-                $this->readValidatedCookie('_fbc', self::FBC_PATTERN),
+                $this->resolveBrowserIdentity($order),
                 $this->resolveConsent($order),
             );
         } catch (\Throwable $e) {
@@ -219,16 +213,23 @@ class OrderStateTransitionObserver implements ObserverInterface
     }
 
     /**
-     * Reads a cookie from the current request and returns it only if it matches the
-     * given format. Returns null when absent or malformed - never forwards garbage.
+     * The identity stored on the order at placement time or, for an order without
+     * one, whatever the current request can tell when it is the shopper's browser.
+     * A failure here never costs the purchase: it is logged and the order is
+     * published without an identity, as before 0.4.0.
      */
-    private function readValidatedCookie(string $name, string $pattern): ?string
+    private function resolveBrowserIdentity(OrderInterface $order): ?BrowserIdentity
     {
-        $value = $this->cookieManager->getCookie($name);
-        if ($value === null || $value === '') {
+        try {
+            return $this->identityStore->read($order) ?? $this->identityCapture->capture();
+        } catch (\Throwable $e) {
+            $this->logger->warning(
+                'AxiTrace observer: browser identity read failed, publishing without it: '
+                . $e::class . ': ' . $e->getMessage(),
+                ['exception' => $e]
+            );
+
             return null;
         }
-
-        return preg_match($pattern, $value) === 1 ? $value : null;
     }
 }

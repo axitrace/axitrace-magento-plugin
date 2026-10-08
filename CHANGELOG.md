@@ -5,6 +5,36 @@ All notable changes to `axitrace/module-tracking` are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-10-08
+
+### Fixed
+- **Purchases are now linked to the shopper's visitor profile.** Until now a purchase reached AxiTrace without the AxiTrace visitor and session ids (`vt_vid` / `vt_sid`), with an empty User-Agent and with no click id other than `_fbc`, so it could not be stitched to the visitor's profile and ad clicks, and AxiTrace recorded the User-Agent of the request sent by the Magento server instead of the shopper's. Purchases now carry `userId` (= `vt_vid`), `sessionId` (= `vt_sid`), the shopper's IP address and User-Agent, the browser ids `fbp`, `fbc`, `ttp`, `rdt_uuid`, `obref`, `_ga` and the click ids `gclid`, `gbraid`, `wbraid`, `ttclid`, `rdt_cid`, `oppref` under `data`. This needs no configuration.
+- An order moving to `processing` in the admin (for example an invoice for a bank transfer order) no longer attaches the merchant's own `_fbp` / `_fbc` cookies to the buyer's purchase.
+
+### Added
+- A new observer on `sales_order_place_after` captures that identity in the request that places the order and stores it on the order in the new nullable column `sales_order.axitrace_browser_identity` (JSON). Run `bin/magento setup:upgrade` after updating. The purchase, the retry cron and the queue consumer read it from there, so a purchase confirmed later by an admin invoice or a payment webhook still carries the shopper's identity.
+- Only the shopper's own browser request is read: the `frontend`, `webapi_rest` (the Luma checkout) and `graphql` areas, and only when the request carries cookies. Orders created in the admin, by a payment webhook or through the API by another system store nothing.
+- Click ids follow the rules of the AxiTrace JavaScript SDK that wrote them and of the AxiTrace PHP SDK 1.10.0: a click id in the current URL wins; otherwise the cookie value `v2|<firstSeenMs>|<clickId>` is reduced to the bare click id, and a click older than 90 days (`gclid`, `gbraid`, `wbraid`, `ttclid`) or 28 days (`rdt_cid`, `oppref`) is not sent. Unversioned or malformed values are ignored. Browser ids are sent only when they match the format their pixel writes.
+
+### Changed
+- The `axitrace.order.placed` queue message carries the identity as a `browser` object instead of the top-level `fbp` / `fbc` keys. Messages queued by an earlier version are still read, including their `fbp` / `fbc`.
+
+## [0.3.0] - 2026-10-02
+
+### Added
+- Optional **AxiTrace secret key** setting (Stores > Configuration > AxiTrace > General), encrypted at rest and configurable per store view. When set, requests to AxiTrace carry `Authorization: Basic base64(<secret key>:)`, which AxiTrace requires before it accepts product costs or refunds. Find it in AxiTrace under Settings, in the Container Information card, as Secret Key. When empty, no Authorization header, no costs and no refunds are sent; purchases still change as listed below (`tax`, `shipping`, `taxesIncluded`, per-line `externalId`, and the store view's API base URL).
+- Purchase events now carry `data.tax` (order tax amount), `data.shipping` (shipping charged including its tax) and `data.taxesIncluded = true` (the revenue sent is Magento's grand total, which always contains the tax), all in the order currency like `revenue`.
+- Every product line carries `externalId` = `magento:<product id>`; for a configurable product this is the simple product that was actually bought.
+- With the secret key set, every product line that has a cost carries `unitCost` (`{amount, currency}`): in this order, the order item's `base_cost` of the product that was bought (for a configurable product the simple child line, then the parent line), then the current `cost` attribute of that product, then of the parent product. A zero or missing cost is left out. Costs are sent only when the store's base currency (the currency of Magento product costs) equals the order currency.
+- Refunds: a new observer on `sales_order_creditmemo_save_after` sends each credit memo to `POST /v1/refund` (refund id = credit memo id, amount = credit memo grand total in the order currency, one line per refunded product with sku, externalId, quantity and amount). A new observer on `order_cancel_after` sends the canceled amount (`total_canceled`, gross, in the order currency) with refund id `cancel-<order id>`: a full cancellation (nothing paid) as `isCancellation = true` with no lines, which AxiTrace reverses as the whole order; a partial cancellation as `isCancellation = true` with the canceled lines (gross, pro rata to the canceled quantity), which AxiTrace reverses line by line; a partial cancellation that cancels no product line (only uninvoiced shipping) as an amount-only refund, so it is never read as a whole-order reversal. `orderId` is the order entity id, the same `orderId` the purchase is stored under. Both are sent only with the secret key set and only for orders this module reported as a purchase. They never interrupt the credit memo or the cancellation: every failure is logged to `var/log/axitrace.log`.
+
+### Changed
+- If AxiTrace answers 401 to a purchase sent with the secret key, the purchase is sent again in the same run without the key and without costs, and the rejection is logged critical. A wrong key loses profit data, never the purchase.
+- Requests now use the API base URL configured for the order's store view; before 0.3.0 they always used the default-scope value.
+
+### Security
+- The secret key is never sent over a non-https API base URL. With such a URL the key is not used: purchases go without the Authorization header and without costs, no refund is sent, and a warning is logged to `var/log/axitrace.log`.
+
 ## [0.2.0] - 2026-09-16
 
 ### Added

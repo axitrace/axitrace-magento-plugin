@@ -72,4 +72,15 @@
 
     </table>
 
+    <!--
+        The shopper's browser identity captured when the order was placed (JSON: AxiTrace
+        visitor and session ids, IP, User-Agent, ad platform browser ids, persisted click
+        ids). Written by CaptureBrowserIdentityObserver, read when the purchase is sent.
+        Nullable: orders placed in the admin, through a server-to-server API, or before
+        module 0.4.0 have none.
+    -->
+    <table name="sales_order" resource="sales">
+        <column xsi:type="text" name="axitrace_browser_identity" nullable="true" comment="AxiTrace: shopper browser identity captured at order placement (JSON)"/>
+    </table>
+
 </schema>
