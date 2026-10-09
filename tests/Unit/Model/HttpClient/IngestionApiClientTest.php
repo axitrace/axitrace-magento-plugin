@@ -83,8 +83,41 @@ class IngestionApiClientTest extends TestCase
         self::assertArrayNotHasKey('Authorization', $this->headers);
     }
 
-    private function client(int $status, string $baseUrl = 'https://stat.example.test'): IngestionApiClient
+    public function testKeyedPurchaseAcceptedWithAnUnverifiedKeyReturnsFalseAndLogsCritical(): void
     {
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects(self::once())->method('critical')
+            ->with(self::stringContains('not a valid AxiTrace secret key'));
+
+        // HTTP/2 answers carry lower-case header names, HTTP/1.1 ones the server's casing.
+        self::assertFalse($this->client(202, headers: ['X-AxiTrace-Cost-Key' => 'unverified'], logger: $logger)
+            ->sendOrderEvent('{}', 'sk_live_garbage'));
+        self::assertFalse($this->client(202, headers: ['x-axitrace-cost-key' => 'unverified'])
+            ->sendOrderEvent('{}', 'sk_live_garbage'));
+    }
+
+    public function testKeyedPurchaseAcceptedWithoutTheHeaderReturnsTrue(): void
+    {
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects(self::never())->method('critical');
+
+        self::assertTrue($this->client(202, logger: $logger)->sendOrderEvent('{}', 'sk_live_right'));
+    }
+
+    public function testUnverifiedHeaderIsIgnoredWhenNoKeyWasSent(): void
+    {
+        self::assertTrue($this->client(202, headers: ['X-AxiTrace-Cost-Key' => 'unverified'])->sendOrderEvent('{}'));
+    }
+
+    /**
+     * @param array<string, string> $headers Response headers.
+     */
+    private function client(
+        int $status,
+        string $baseUrl = 'https://stat.example.test',
+        array $headers = [],
+        ?LoggerInterface $logger = null,
+    ): IngestionApiClient {
         $this->headers = [];
         $this->postedUrl = '';
 
@@ -97,6 +130,7 @@ class IngestionApiClientTest extends TestCase
         });
         $curl->method('getStatus')->willReturn($status);
         $curl->method('getBody')->willReturn('');
+        $curl->method('getHeaders')->willReturn($headers);
 
         $factory = $this->createMock(CurlFactory::class);
         $factory->method('create')->willReturn($curl);
@@ -104,6 +138,6 @@ class IngestionApiClientTest extends TestCase
         $config = $this->createMock(ModuleConfig::class);
         $config->method('getApiBaseUrl')->willReturn($baseUrl);
 
-        return new IngestionApiClient($factory, $config, $this->createMock(LoggerInterface::class));
+        return new IngestionApiClient($factory, $config, $logger ?? $this->createMock(LoggerInterface::class));
     }
 }

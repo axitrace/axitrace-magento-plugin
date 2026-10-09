@@ -32,6 +32,9 @@ use Psr\Log\LoggerInterface;
  * ingestion rejects the key (401), the purchase is sent again without the key and
  * without costs in the same run: a wrong key must cost the merchant profit data,
  * never the purchase itself. The rejection is logged critical by the client.
+ * A key AxiTrace does not recognise at all is answered 2xx with the costs dropped;
+ * both cases leave a note on the event log row, which the admin status indicator
+ * (Stores > Configuration > AxiTrace) shows to the merchant.
  *
  * Catches \Throwable - Magento's MysqlMq has a silent-drop bug; if we rethrow,
  * the message vanishes. Instead we update the log row, log critically, and
@@ -39,6 +42,12 @@ use Psr\Log\LoggerInterface;
  */
 class OrderEventConsumer
 {
+    /** Event log note on a purchase sent with a key AxiTrace did not recognise. */
+    public const NOTE_KEY_UNVERIFIED = 'Sent without product costs: AxiTrace did not recognise the configured secret key.';
+
+    /** Event log note on a purchase resent without costs after a 401. */
+    public const NOTE_KEY_REJECTED = 'Sent without product costs: AxiTrace rejected the configured secret key (it belongs to another workspace).';
+
     public function __construct(
         private readonly OrderRepositoryInterface $orderRepo,
         private readonly EventLogRepositoryInterface $eventLogRepo,
@@ -91,8 +100,11 @@ class OrderEventConsumer
             );
             $payloadJson = (string) json_encode($eventData, JSON_THROW_ON_ERROR);
 
+            $note = null;
             try {
-                $this->client->sendOrderEvent($payloadJson, $secretKey, $storeId);
+                if (!$this->client->sendOrderEvent($payloadJson, $secretKey, $storeId)) {
+                    $note = self::NOTE_KEY_UNVERIFIED;
+                }
             } catch (SecretKeyRejectedException $rejected) {
                 $eventData = $this->normalizer->normalize(
                     $order,
@@ -105,13 +117,14 @@ class OrderEventConsumer
                 $payloadJson = (string) json_encode($eventData, JSON_THROW_ON_ERROR);
 
                 $this->client->sendOrderEvent($payloadJson, '', $storeId);
+                $note = self::NOTE_KEY_REJECTED;
                 $this->logger->warning(
                     'AxiTrace consumer: secret key rejected, purchase ' . $eventIdHash
                     . ' sent without product costs.'
                 );
             }
 
-            $this->markSent($row, strlen($payloadJson));
+            $this->markSent($row, strlen($payloadJson), $note);
         } catch (IngestionUnreachableException $e) {
             $this->markFailed($row, 'ingestion_unreachable: ' . $e->getMessage());
             $this->logger->critical(
@@ -176,7 +189,7 @@ class OrderEventConsumer
         return $decoded;
     }
 
-    private function markSent(?EventLog $row, int $payloadBytes): void
+    private function markSent(?EventLog $row, int $payloadBytes, ?string $note = null): void
     {
         if ($row === null) {
             return;
@@ -186,7 +199,7 @@ class OrderEventConsumer
             ->setAttempts(((int) $row->getAttempts()) + 1)
             ->setPayloadSizeBytes($payloadBytes)
             ->setSentAt(gmdate('Y-m-d H:i:s'))
-            ->setLastError(null);
+            ->setLastError($note);
         $this->eventLogRepo->save($row);
     }
 

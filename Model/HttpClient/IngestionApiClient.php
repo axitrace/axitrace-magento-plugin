@@ -25,7 +25,12 @@ use Psr\Log\LoggerInterface;
  *     and truncated response body (≤500 bytes, no PII leak risk).
  *   - Network failure (DNS, TCP, TLS, timeout) → throws IngestionUnreachableException.
  *   - 401 to a request that carried the secret key → throws SecretKeyRejectedException
- *     (a subclass), so the caller can resend the purchase without cost data.
+ *     (a subclass), so the caller can resend the purchase without cost data. AxiTrace
+ *     answers 401 only to a valid secret key of ANOTHER workspace.
+ *   - 2xx with `X-AxiTrace-Cost-Key: unverified` to a request that carried a key: the
+ *     purchase was accepted but the key is not a valid secret key (mistyped, rotated,
+ *     garbage), so its costs were dropped. Logged critical; sendOrderEvent() returns
+ *     false so the caller can record it where the merchant sees it.
  *
  * Secret key: when the merchant configured one, requests carry
  * `Authorization: Basic base64(<secret key>:)`. AxiTrace honours cost fields and
@@ -33,6 +38,9 @@ use Psr\Log\LoggerInterface;
  */
 class IngestionApiClient
 {
+    /** Set by AxiTrace on a 2xx to a request whose secret key did not verify. */
+    public const COST_KEY_HEADER = 'x-axitrace-cost-key';
+
     private const ENDPOINT_PATH = '/magento/pixel';
     private const REFUND_PATH   = '/v1/refund';
 
@@ -51,11 +59,14 @@ class IngestionApiClient
      *
      * @param string $secretKey Workspace secret key; '' sends no Authorization header.
      *
+     * @return bool False when the request carried a secret key that AxiTrace did not
+     *              recognise: the purchase was accepted, its product costs were dropped.
+     *
      * @throws IngestionUnreachableException
      */
-    public function sendOrderEvent(string $payloadJson, string $secretKey = '', ?int $storeId = null): void
+    public function sendOrderEvent(string $payloadJson, string $secretKey = '', ?int $storeId = null): bool
     {
-        $this->post($this->config->getApiBaseUrl($storeId) . self::ENDPOINT_PATH, $payloadJson, $secretKey);
+        return $this->post($this->config->getApiBaseUrl($storeId) . self::ENDPOINT_PATH, $payloadJson, $secretKey);
     }
 
     /**
@@ -74,9 +85,11 @@ class IngestionApiClient
     }
 
     /**
+     * @return bool False when a keyed request was accepted with its key unverified.
+     *
      * @throws IngestionUnreachableException
      */
-    private function post(string $url, string $payloadJson, string $secretKey): void
+    private function post(string $url, string $payloadJson, string $secretKey): bool
     {
         $curl = $this->curlFactory->create();
 
@@ -133,6 +146,44 @@ class IngestionApiClient
                 'HTTP ' . $statusCode . ' from ingestion-api'
             );
         }
+
+        if ($secretKey !== '' && $this->costKeyUnverified($curl->getHeaders())) {
+            // Accepted, but the key is not a valid AxiTrace secret key, so the costs
+            // were dropped. Nothing to resend: only the merchant can fix the key.
+            $this->logger->critical(
+                'AxiTrace: the configured secret key is not a valid AxiTrace secret key (' . $url . '). '
+                . 'The event was tracked but its product costs were dropped, so profit uses the default margin. '
+                . 'Copy the Secret Key of the same workspace as the public key into '
+                . 'Stores > Configuration > AxiTrace > AxiTrace secret key.'
+            );
+
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * @param mixed $headers Response headers as Magento's curl client returns them.
+     */
+    private function costKeyUnverified(mixed $headers): bool
+    {
+        if (!is_array($headers)) {
+            return false;
+        }
+
+        foreach ($headers as $name => $value) {
+            if (strtolower(trim((string) $name)) !== self::COST_KEY_HEADER) {
+                continue;
+            }
+            foreach ((array) $value as $one) {
+                if (strtolower(trim((string) $one)) === 'unverified') {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**

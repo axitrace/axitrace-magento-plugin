@@ -26,6 +26,7 @@ use Magento\Sales\Api\Data\OrderItemInterface;
  *       revenue: { amount, currency },
  *       value: <float>,
  *       tax: <float>, shipping: <float>, taxesIncluded: true,
+ *       paymentInfo?: { method },  // the payment method code, e.g. "checkmo"
  *       fbp?, fbc?, ttp?, rdt_uuid?, obref?, _ga?,             // browser ids
  *       gclid?, gbraid?, wbraid?, ttclid?, rdt_cid?, oppref?,  // click ids
  *       consent?: "granted"|"denied" // present only when the store asks for consent
@@ -58,7 +59,7 @@ use Magento\Sales\Api\Data\OrderItemInterface;
  */
 class OrderEventNormalizer
 {
-    private const PLUGIN_VERSION = '0.4.1';
+    private const PLUGIN_VERSION = '0.4.2';
     private const SDK_VERSION    = 'magento-1.0';
     private const SOURCE         = 'magento';
 
@@ -139,6 +140,14 @@ class OrderEventNormalizer
             'taxesIncluded' => true,
         ];
 
+        // The payment method code (e.g. "checkmo", "braintree"): AxiTrace stores it as
+        // the order's payment method and selects the merchant's payment fee rule with
+        // it. Without it every order gets the default fee. Omitted when unknown.
+        $paymentMethod = $this->paymentMethod($order);
+        if ($paymentMethod !== null) {
+            $data['paymentInfo'] = ['method' => $paymentMethod];
+        }
+
         $browser ??= BrowserIdentity::empty();
 
         // Browser and click ids, each omitted when it was not captured.
@@ -188,6 +197,18 @@ class OrderEventNormalizer
         }
 
         return $event;
+    }
+
+    private function paymentMethod(OrderInterface $order): ?string
+    {
+        $payment = $order->getPayment();
+        if (!is_object($payment) || !method_exists($payment, 'getMethod')) {
+            return null;
+        }
+
+        $method = trim((string) $payment->getMethod());
+
+        return $method !== '' ? $method : null;
     }
 
     /**

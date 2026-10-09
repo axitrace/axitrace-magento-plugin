@@ -166,6 +166,11 @@ namespace Magento\Framework\HTTP\Client {
             {
                 return '';
             }
+
+            public function getHeaders()
+            {
+                return [];
+            }
         }
     }
 
@@ -214,6 +219,14 @@ namespace Magento\Framework\Encryption {
 }
 
 namespace Magento\Framework\App {
+    if (!class_exists(Area::class)) {
+        class Area
+        {
+            public const AREA_FRONTEND = 'frontend';
+            public const AREA_ADMINHTML = 'adminhtml';
+        }
+    }
+
     if (!class_exists(State::class)) {
         class State
         {
@@ -488,11 +501,55 @@ namespace Magento\Sales\Model {
                 return null;
             }
 
+            public function getId()
+            {
+                return null;
+            }
+
+            /** @return \Magento\Sales\Model\Order\Payment|null */
+            public function getPayment()
+            {
+                return null;
+            }
+
             /** @return array<int, \Magento\Sales\Api\Data\OrderItemInterface> */
             public function getAllVisibleItems(): array
             {
                 return [];
             }
+        }
+    }
+}
+
+namespace Magento\Sales\Model\Order {
+    if (!class_exists(Payment::class)) {
+        class Payment
+        {
+            public function getMethod()
+            {
+                return null;
+            }
+        }
+    }
+}
+
+namespace Magento\Checkout\Model {
+    if (!class_exists(Session::class)) {
+        class Session
+        {
+            /** @return \Magento\Sales\Model\Order|null */
+            public function getLastRealOrder()
+            {
+                return null;
+            }
+        }
+    }
+}
+
+namespace Magento\Framework\View\Element\Block {
+    if (!interface_exists(ArgumentInterface::class)) {
+        interface ArgumentInterface
+        {
         }
     }
 }
@@ -562,6 +619,44 @@ namespace Magento\Sales\Model\Order\Creditmemo {
 
             /** @return \Magento\Sales\Model\Order\Item|null */
             public function getOrderItem() { return null; }
+        }
+    }
+}
+
+namespace Magento\Csp\Api {
+    if (!interface_exists(PolicyCollectorInterface::class)) {
+        interface PolicyCollectorInterface
+        {
+            public function collect(array $defaultPolicies = []): array;
+        }
+    }
+}
+
+namespace Magento\Csp\Model\Policy {
+    if (!class_exists(FetchPolicy::class)) {
+        class FetchPolicy
+        {
+            public function __construct(
+                private string $id,
+                private bool $noneAllowed = true,
+                private array $hostSources = [],
+            ) {
+            }
+
+            public function getId(): string
+            {
+                return $this->id;
+            }
+
+            public function isNoneAllowed(): bool
+            {
+                return $this->noneAllowed;
+            }
+
+            public function getHostSources(): array
+            {
+                return $this->hostSources;
+            }
         }
     }
 }

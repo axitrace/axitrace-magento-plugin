@@ -11,6 +11,7 @@ require_once __DIR__ . '/../../magento-stubs.php';
 use AxiTrace\Tracking\Api\EventLogRepositoryInterface;
 use AxiTrace\Tracking\Exception\SecretKeyRejectedException;
 use AxiTrace\Tracking\Model\Config\ModuleConfig;
+use AxiTrace\Tracking\Model\EventLog\EventLog;
 use AxiTrace\Tracking\Model\HttpClient\IngestionApiClient;
 use AxiTrace\Tracking\Model\Identity\OrderBrowserIdentityStore;
 use AxiTrace\Tracking\Model\Normalizer\OrderEventNormalizer;
@@ -32,6 +33,8 @@ class OrderEventConsumerTest extends TestCase
 {
     /** @var list<array{json: string, secretKey: string}> */
     private array $sent = [];
+
+    private ?string $savedNote = null;
 
     public function testConsentFromTheQueueMessageReachesTheIngestionPayload(): void
     {
@@ -126,6 +129,28 @@ class OrderEventConsumerTest extends TestCase
         self::assertSame('magento:501', $payload['data']['products'][0]['externalId']);
     }
 
+    public function testAcceptedKeyLeavesNoNoteOnTheEventLog(): void
+    {
+        $this->consume([], 'sk_test_secret');
+
+        self::assertNull($this->savedNote);
+    }
+
+    public function testUnrecognisedKeyIsNotedOnTheEventLogForTheMerchant(): void
+    {
+        $this->consume([], 'sk_test_garbage', unverifiedKey: true);
+
+        self::assertCount(1, $this->sent);
+        self::assertSame(OrderEventConsumer::NOTE_KEY_UNVERIFIED, $this->savedNote);
+    }
+
+    public function testRejectedKeyIsNotedOnTheEventLogForTheMerchant(): void
+    {
+        $this->consume([], 'sk_test_wrong', rejectSecretKey: true);
+
+        self::assertSame(OrderEventConsumer::NOTE_KEY_REJECTED, $this->savedNote);
+    }
+
     /**
      * @param array<string, mixed> $extra Extra keys for the queue message.
      *
@@ -135,17 +160,31 @@ class OrderEventConsumerTest extends TestCase
         array $extra,
         string $secretKey = '',
         bool $rejectSecretKey = false,
-        ?string $storedIdentity = null
+        ?string $storedIdentity = null,
+        bool $unverifiedKey = false,
     ): array {
         $this->sent = [];
+        $this->savedNote = 'not saved';
+
+        // A real row (its setters and getData) without the model's framework constructor.
+        $row = $this->createPartialMock(EventLog::class, []);
+        $eventLog = $this->createMock(EventLogRepositoryInterface::class);
+        $eventLog->method('findByEventIdHash')->willReturn($row);
+        $eventLog->method('save')->willReturnCallback(function (EventLog $saved): EventLog {
+            $this->savedNote = $saved->getData('last_error');
+
+            return $saved;
+        });
 
         $client = $this->createMock(IngestionApiClient::class);
         $client->method('sendOrderEvent')->willReturnCallback(
-            function (string $json, string $key = '') use ($rejectSecretKey): void {
+            function (string $json, string $key = '') use ($rejectSecretKey, $unverifiedKey): bool {
                 $this->sent[] = ['json' => $json, 'secretKey' => $key];
                 if ($rejectSecretKey && $key !== '') {
                     throw new SecretKeyRejectedException('HTTP 401');
                 }
+
+                return !($unverifiedKey && $key !== '');
             }
         );
 
@@ -181,7 +220,7 @@ class OrderEventConsumerTest extends TestCase
 
         $consumer = new OrderEventConsumer(
             $orders,
-            $this->createMock(EventLogRepositoryInterface::class),
+            $eventLog,
             new OrderEventNormalizer(new OrderLineCostResolver()),
             $client,
             $config,

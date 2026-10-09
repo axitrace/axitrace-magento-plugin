@@ -16,6 +16,8 @@ use Magento\Framework\Data\Form\Element\AbstractElement;
  *   green  — last event sent <24h ago (status=sent)
  *   yellow — no events captured yet (table empty)
  *   red    — the most recent attempt failed (most recent row status=failed)
+ *   amber  — the last event was sent but carries a note, e.g. it went without product
+ *            costs because AxiTrace did not accept the configured secret key
  *
  * Reads from axitrace_event_log via the repository — no direct SQL.
  */
@@ -45,10 +47,15 @@ class StatusIndicator extends Field
         $ageSeconds = max(0, time() - (int) strtotime($sentAt . ' UTC'));
         $minutesAgo = (int) floor($ageSeconds / 60);
 
+        $note = trim((string) $row->getData('last_error'));
+        if ($ageSeconds <= 86400 && $note !== '') {
+            return $this->renderDot('#d4a017', __('Connected, but check your settings: %1', $note));
+        }
+
         if ($ageSeconds <= 86400) {
             $label = $minutesAgo <= 1
-                ? __('Connected — last event %1 just now', '')
-                : __('Connected — last event %1 minutes ago', $minutesAgo);
+                ? __('Connected - last event %1 just now', '')
+                : __('Connected - last event %1 minutes ago', $minutesAgo);
             return $this->renderDot('#28a745', $label);
         }
 
@@ -60,7 +67,7 @@ class StatusIndicator extends Field
         return sprintf(
             '<span style="display:inline-block;width:10px;height:10px;border-radius:50%%;background:%s;margin-right:8px;vertical-align:middle"></span><span style="vertical-align:middle">%s</span>',
             htmlspecialchars($hexColor, ENT_QUOTES, 'UTF-8'),
-            (string) $label
+            htmlspecialchars((string) $label, ENT_QUOTES, 'UTF-8')
         );
     }
 }

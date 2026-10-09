@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AxiTrace\Tracking\ViewModel;
 
+use AxiTrace\Tracking\Model\Config\ModuleConfig;
 use AxiTrace\Tracking\Model\EventId\UuidV5Generator;
 use Magento\Checkout\Model\Session as CheckoutSession;
 use Magento\Framework\View\Element\Block\ArgumentInterface;
@@ -22,11 +23,24 @@ class OrderConfirmationContext implements ArgumentInterface
     public function __construct(
         private readonly CheckoutSession $checkoutSession,
         private readonly UuidV5Generator $uuidGenerator,
+        private readonly ModuleConfig $config,
     ) {
     }
 
+    /**
+     * True when the success page should push the purchase from the browser.
+     *
+     * Never while the secret key is configured: AxiTrace keeps ONE purchase per event
+     * id, the first to arrive, and the browser copy (same event id, no product costs)
+     * would arrive long before the server-side purchase that carries the costs, which
+     * would then be dropped as a duplicate. With the key the server alone sends it.
+     */
     public function hasOrder(): bool
     {
+        if ($this->config->getSecretKey() !== '') {
+            return false;
+        }
+
         return $this->checkoutSession->getLastRealOrder() !== null
             && $this->checkoutSession->getLastRealOrder()->getId() !== null;
     }

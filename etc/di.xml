@@ -97,4 +97,20 @@
         </arguments>
     </type>
 
+    <!--
+        Storefront Content Security Policy: allow the configured AxiTrace tracking
+        domain (SDK script) and API base URL (SDK requests). Magento 2.4.7 enforces CSP
+        on the checkout pages, where the SDK would otherwise be blocked. Registered
+        globally on purpose: an area di.xml REPLACES this argument instead of merging
+        it, which would drop every core collector (self, the inline-script hashes) and
+        break the checkout. The collector itself adds nothing outside the storefront.
+    -->
+    <type name="Magento\Csp\Model\CompositePolicyCollector">
+        <arguments>
+            <argument name="collectors" xsi:type="array">
+                <item name="axitrace_tracking_domain" xsi:type="object" sortOrder="50">AxiTrace\Tracking\Model\Csp\TrackingDomainPolicyCollector\Proxy</item>
+            </argument>
+        </arguments>
+    </type>
+
 </config>

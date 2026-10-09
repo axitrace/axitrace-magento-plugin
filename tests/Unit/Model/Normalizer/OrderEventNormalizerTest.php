@@ -56,7 +56,7 @@ class OrderEventNormalizerTest extends TestCase
     {
         $event = $this->normalizeWith(null);
 
-        self::assertSame('0.4.1', $event['pluginVersion']);
+        self::assertSame('0.4.2', $event['pluginVersion']);
     }
 
     public function testBrowserIdentityLinksThePurchaseToTheVisitor(): void
@@ -110,6 +110,25 @@ class OrderEventNormalizerTest extends TestCase
         self::assertSame(12.3, $data['shipping']);
         self::assertTrue($data['taxesIncluded']);
         self::assertSame(['amount' => 199.99, 'currency' => 'EUR'], $data['revenue']);
+    }
+
+    public function testPaymentMethodCodeIsSentForThePaymentFeeRule(): void
+    {
+        $payment = $this->createMock(\Magento\Sales\Model\Order\Payment::class);
+        $payment->method('getMethod')->willReturn('checkmo');
+        $order = $this->order([], 'EUR', 'EUR');
+        $order->method('getPayment')->willReturn($payment);
+
+        $data = $this->normalizer()->normalize($order, 'hash-1', 'pk_test')['data'];
+
+        self::assertSame(['method' => 'checkmo'], $data['paymentInfo']);
+    }
+
+    public function testNoPaymentInfoWithoutAPayment(): void
+    {
+        $data = $this->normalizer()->normalize($this->order([], 'EUR', 'EUR'), 'hash-1', 'pk_test')['data'];
+
+        self::assertArrayNotHasKey('paymentInfo', $data);
     }
 
     public function testUnitCostFromTheOrderItemBaseCost(): void

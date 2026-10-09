@@ -51,6 +51,22 @@ class RefundSenderTest extends TestCase
         self::assertFalse($payload['isCancellation']);
     }
 
+    public function testRefundNamesItsWorkspaceSoAnotherWorkspacesKeyIsRefused(): void
+    {
+        $this->sender(secretKey: 'sk_test_secret', purchaseStatus: EventLog::STATUS_SENT)
+            ->sendCreditmemo($this->creditmemo(), $this->order());
+        $sent = $this->sent;
+        $this->sender(secretKey: 'sk_test_secret', purchaseStatus: EventLog::STATUS_SENT)
+            ->sendCancellation($this->order(totalCanceled: '60.0000'));
+        $sent = [...$sent, ...$this->sent];
+
+        self::assertCount(2, $sent);
+        foreach ($sent as $one) {
+            $payload = json_decode($one['json'], true, 16, JSON_THROW_ON_ERROR);
+            self::assertSame('pk_live_this_workspace', $payload['workspace_public_key']);
+        }
+    }
+
     public function testCancellationIsSentAsCancellation(): void
     {
         $this->sender(secretKey: 'sk_test_secret', purchaseStatus: EventLog::STATUS_FAILED)
@@ -117,6 +133,7 @@ class RefundSenderTest extends TestCase
         $config = $this->createMock(ModuleConfig::class);
         $config->method('isEnabled')->willReturn($enabled);
         $config->method('getSecretKey')->willReturn($secretKey);
+        $config->method('getWorkspacePublicKey')->willReturn('pk_live_this_workspace');
 
         $client = $this->createMock(IngestionApiClient::class);
         $client->method('sendRefund')->willReturnCallback(

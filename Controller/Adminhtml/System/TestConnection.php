@@ -40,7 +40,7 @@ class TestConnection extends Action implements HttpPostActionInterface
         if ($key === '' || preg_match(self::KEY_REGEX, $key) !== 1) {
             return $result->setData([
                 'success' => false,
-                'message' => __('Invalid workspace public key. Expected format: pk_live_... or pk_test_... (20–64 chars).')->render(),
+                'message' => __('Invalid workspace public key. Expected format: pk_live_... or pk_test_... (20-64 chars).')->render(),
             ]);
         }
 

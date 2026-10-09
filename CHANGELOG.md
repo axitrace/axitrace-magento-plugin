@@ -5,6 +5,15 @@ All notable changes to `axitrace/module-tracking` are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.2] - 2026-10-09
+
+### Fixed
+- **The AxiTrace SDK is no longer blocked on checkout by Magento's Content Security Policy.** Magento 2.4.7 enforces CSP on the checkout pages, where the browser refused both the SDK script and the module's inline scripts, so no `begin_checkout` or `add_payment_info` event was ever sent. The configured tracking domain (`script-src`, `connect-src`) and API base URL (`connect-src`) are now added to the storefront policy by a CSP collector, and every inline script is rendered through Magento's `SecureHtmlRenderer`, which allows it by its hash. Inline JSON is encoded with `JSON_HEX_TAG`.
+- **A secret key AxiTrace does not recognise is no longer silent.** AxiTrace accepts such a purchase but drops its product costs and answers with `X-AxiTrace-Cost-Key: unverified`. The module now logs that as critical in `var/log/axitrace.log`, notes it on the purchase's event log row, and the status indicator in Stores > Configuration > AxiTrace shows it. A key of another workspace (HTTP 401, purchase resent without costs) is noted the same way.
+- **Refunds and cancellations name their workspace.** `POST /v1/refund` now carries `workspace_public_key`, so a secret key of another workspace is refused instead of booking the refund into that other workspace.
+- **With the secret key, the success page no longer prepares a browser copy of the purchase.** AxiTrace keeps the first purchase per event id; a browser copy without product costs would arrive before the server-side purchase that carries them and replace it. The server alone sends the purchase while the key is configured. (In 0.4.1 and earlier the success-page script waited for `window.axitrace` and an `axitrace:ready` event that the AxiTrace SDK does not provide, so it never sent anything; this makes the rule explicit.)
+- **Purchases carry the payment method** (`data.paymentInfo.method`, the Magento payment method code such as `checkmo`), so AxiTrace stores it and applies the merchant's payment fee rule for that method instead of the default fee.
+
 ## [0.4.1] - 2026-10-08
 
 ### Added

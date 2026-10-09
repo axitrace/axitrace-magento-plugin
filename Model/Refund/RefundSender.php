@@ -26,6 +26,10 @@ use Psr\Log\LoggerInterface;
  *     reached "processing" was never reported as a purchase, so there is nothing
  *     to reverse.
  *
+ * Every refund names its workspace (`workspace_public_key`), so a secret key of
+ * another workspace is refused (401, logged critical) instead of booking the refund
+ * into that other workspace.
+ *
  * Never throws: it runs inside the credit memo and cancellation save of the merchant's
  * admin, where an exception would roll the refund back. Every failure is logged with
  * its class and message; a failed send is logged critical. AxiTrace deduplicates on
@@ -97,6 +101,14 @@ class RefundSender
                     'AxiTrace refund: ' . $what . ' of order ' . $incrementId . ' has no amount, not sent.'
                 );
                 return;
+            }
+
+            // Names the workspace the refund is for. The endpoint authenticates by the
+            // secret key alone, so without it a refund sent with another workspace's
+            // key would be booked into THAT workspace; with it AxiTrace answers 401.
+            $workspacePublicKey = $this->config->getWorkspacePublicKey($storeId);
+            if ($workspacePublicKey !== '') {
+                $payload['workspace_public_key'] = $workspacePublicKey;
             }
 
             $this->client->sendRefund((string) json_encode($payload, JSON_THROW_ON_ERROR), $secretKey, $storeId);
