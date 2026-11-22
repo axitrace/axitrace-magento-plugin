@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<!--
+    Storefront route for the store domain proof: GET /axitrace/domain/proof?nonce=...
+    (Controller/Domain/Proof.php). AxiTrace fetches it to verify the store domain.
+    The admin router uses the same front name for its AJAX endpoints; the areas
+    are separate, so they do not collide.
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework:App/etc/routes.xsd">
+    <router id="standard">
+        <route id="axitrace" frontName="axitrace">
+            <module name="AxiTrace_Tracking"/>
+        </route>
+    </router>
+</config>

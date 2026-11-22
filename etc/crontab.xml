@@ -10,6 +10,10 @@
     `axitrace_retry_failed` (every 15 minutes) re-publishes failed events
     (status=failed, attempts<5) into the queue. Failures past 5 attempts are
     left as-is; the admin StatusIndicator surfaces them as a red dot.
+
+    `axitrace_claim_store_domain` (daily) asks AxiTrace to verify the storefront
+    hosts again; `axitrace_claim_store_domain_first` (every 15 minutes) claims only
+    while no outcome is stored, i.e. on the first cron run after install or upgrade.
 -->
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Cron:etc/crontab.xsd">
@@ -24,6 +28,18 @@
         <job name="axitrace_retry_failed"
              instance="AxiTrace\Tracking\Model\EventLog\RetryFailedScheduler"
              method="execute">
+            <schedule>*/15 * * * *</schedule>
+        </job>
+
+        <job name="axitrace_claim_store_domain"
+             instance="AxiTrace\Tracking\Cron\ClaimStoreDomain"
+             method="execute">
+            <schedule>23 3 * * *</schedule>
+        </job>
+
+        <job name="axitrace_claim_store_domain_first"
+             instance="AxiTrace\Tracking\Cron\ClaimStoreDomain"
+             method="executeIfNeverClaimed">
             <schedule>*/15 * * * *</schedule>
         </job>
     </group>

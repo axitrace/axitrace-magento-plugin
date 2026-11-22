@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<!--
+    Admin-area event subscriptions.
+
+    admin_system_config_changed_section_axitrace fires after the AxiTrace section in
+    Stores > Configuration is saved (config already reinitialised): the storefront
+    hosts are claimed at AxiTrace so their browser events are accepted.
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework:Event/etc/events.xsd">
+    <event name="admin_system_config_changed_section_axitrace">
+        <observer name="axitrace_tracking_claim_store_domain"
+                  instance="AxiTrace\Tracking\Observer\ClaimStoreDomainObserver"/>
+    </event>
+</config>

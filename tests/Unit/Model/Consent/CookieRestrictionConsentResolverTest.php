@@ -107,6 +107,7 @@ class CookieRestrictionConsentResolverTest extends TestCase
     /**
      * @dataProvider nonFrontendAreas
      */
+    #[\PHPUnit\Framework\Attributes\DataProvider('nonFrontendAreas')]
     public function testNonFrontendAreaNeverStampsConsent(?string $areaCode): void
     {
         // An admin invoice, a payment webhook and a cron run carry no buyer cookies,

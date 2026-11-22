@@ -78,6 +78,12 @@
         </arguments>
     </type>
 
+    <type name="AxiTrace\Tracking\Model\Domain\StoreDomainClaimer">
+        <arguments>
+            <argument name="logger" xsi:type="object">AxiTrace\Tracking\Logger\Logger</argument>
+        </arguments>
+    </type>
+
     <!--
         Repository binding for the EventLog entity.
     -->

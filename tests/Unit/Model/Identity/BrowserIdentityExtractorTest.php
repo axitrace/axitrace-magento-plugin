@@ -157,6 +157,7 @@ class BrowserIdentityExtractorTest extends TestCase
     /**
      * @dataProvider newClickIds
      */
+    #[\PHPUnit\Framework\Attributes\DataProvider('newClickIds')]
     public function testNewClickIdCookieIsUnwrapped(string $key, string $cookie, int $days, string $id): void
     {
         self::assertSame([$key => $id], $this->extract([$cookie => $this->wrapped($id, 1)])->signals());
@@ -165,6 +166,7 @@ class BrowserIdentityExtractorTest extends TestCase
     /**
      * @dataProvider newClickIds
      */
+    #[\PHPUnit\Framework\Attributes\DataProvider('newClickIds')]
     public function testNewClickIdFromTheUrl(string $key, string $cookie, int $days, string $id): void
     {
         self::assertSame([$key => $id], $this->extract([], [$key => $id])->signals());
@@ -173,6 +175,7 @@ class BrowserIdentityExtractorTest extends TestCase
     /**
      * @dataProvider newClickIds
      */
+    #[\PHPUnit\Framework\Attributes\DataProvider('newClickIds')]
     public function testNewClickIdUrlWinsOverTheCookie(string $key, string $cookie, int $days, string $id): void
     {
         $identity = $this->extract([$cookie => $this->wrapped('stored-click-1', 1)], [$key => $id]);
@@ -183,6 +186,7 @@ class BrowserIdentityExtractorTest extends TestCase
     /**
      * @dataProvider newClickIds
      */
+    #[\PHPUnit\Framework\Attributes\DataProvider('newClickIds')]
     public function testNewClickIdWindowIsTheWebSdkMaximumAge(string $key, string $cookie, int $days, string $id): void
     {
         self::assertSame([$key => $id], $this->extract([$cookie => $this->wrapped($id, $days)])->signals());
@@ -192,6 +196,7 @@ class BrowserIdentityExtractorTest extends TestCase
     /**
      * @dataProvider newClickIds
      */
+    #[\PHPUnit\Framework\Attributes\DataProvider('newClickIds')]
     public function testNewClickIdMalformedCookieIsIgnored(string $key, string $cookie, int $days, string $id): void
     {
         foreach ([$id, 'v2|abc|' . $id, 'v2|0|' . $id, 'v2|' . self::NOW_MS . '|', 'v2|' . self::NOW_MS . '|a b'] as $raw) {
@@ -252,6 +257,7 @@ class BrowserIdentityExtractorTest extends TestCase
     /**
      * @dataProvider vendorCookies
      */
+    #[\PHPUnit\Framework\Attributes\DataProvider('vendorCookies')]
     public function testPlatformCookieIsTheLastFallback(string $key, string $vendor, string $raw, string $id): void
     {
         [$sdkCookie, $days] = BrowserIdentityExtractor::CLICK_ID_COOKIES[$key];

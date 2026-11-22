@@ -272,29 +272,49 @@ class OrderStateTransitionObserverTest extends TestCase
         $config = $this->createMock(ModuleConfig::class);
         $config->method('isEnabled')->willReturn(true);
 
-        $row = $this->getMockBuilder(EventLog::class)
-            ->disableOriginalConstructor()
-            ->addMethods([
-                'setOrderId',
-                'setIncrementId',
-                'setStateAtSend',
-                'setEventIdHash',
-                'setStatus',
-                'setAttempts',
-            ])
-            ->getMock();
-        foreach (
-            [
-                'setOrderId',
-                'setIncrementId',
-                'setStateAtSend',
-                'setEventIdHash',
-                'setStatus',
-                'setAttempts',
-            ] as $setter
-        ) {
-            $row->method($setter)->willReturnSelf();
-        }
+        // The event log row as the observer fills it: Magento's magic setters, declared here so the double works
+        // on every PHPUnit version (MockBuilder::addMethods() is gone in PHPUnit 12, which Magento 2.4.9 ships).
+        $row = new class extends EventLog {
+            public function __construct()
+            {
+            }
+
+            /** @return $this */
+            public function setOrderId($value)
+            {
+                return $this;
+            }
+
+            /** @return $this */
+            public function setIncrementId($value)
+            {
+                return $this;
+            }
+
+            /** @return $this */
+            public function setStateAtSend($value)
+            {
+                return $this;
+            }
+
+            /** @return $this */
+            public function setEventIdHash($value)
+            {
+                return $this;
+            }
+
+            /** @return $this */
+            public function setStatus($value)
+            {
+                return $this;
+            }
+
+            /** @return $this */
+            public function setAttempts($value)
+            {
+                return $this;
+            }
+        };
 
         $factory = $this->createMock(EventLogFactory::class);
         $factory->method('create')->willReturn($row);

@@ -13,7 +13,7 @@ Protocol — without browser dependence, ad blockers, or third-party cookies.
 
 The module itself is fully free under the MIT licence. AxiTrace operates the
 SaaS that processes the forwarded events and is billed on
-[axitrace.com/pricing](https://axitrace.com/pricing) (Stripe). This pattern
+[axitrace.com/pricing](https://axitrace.com/pricing/) (Stripe). This pattern
 mirrors Klaviyo, SendGrid, Yotpo, and Dotdigital — all approved Marketplace
 extensions that pair a free Magento module with a paid SaaS account.
 
@@ -68,16 +68,16 @@ Adobe Commerce on-prem editions share the same support matrix.
 
 ### Integration prerequisite
 
-You need an AxiTrace workspace at [axitrace.com/signup](https://axitrace.com/signup).
+You need an AxiTrace workspace at [axitrace.com/signup](https://axitrace.com/register).
 Workspace creation is free; pricing for SaaS event processing is at
-[axitrace.com/pricing](https://axitrace.com/pricing).
+[axitrace.com/pricing](https://axitrace.com/pricing/).
 
 ### Privacy
 
 The module forwards PII (email, phone) to AxiTrace in plain text over HTTPS.
 Facebook's PHP SDK and TikTok's Events API hash internally per their
 documented requirements. AxiTrace does not sell or share customer PII; full
-privacy notice at [axitrace.com/privacy](https://axitrace.com/privacy).
+privacy notice at [axitrace.com/privacy](https://axitrace.com/privacy/).
 
 ### Support
 

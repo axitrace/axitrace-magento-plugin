@@ -27,4 +27,7 @@
     <exclude-pattern>./tests/e2e/*</exclude-pattern>
     <exclude-pattern>./marketplace/*</exclude-pattern>
     <exclude-pattern>./tools/*</exclude-pattern>
+    <!-- Stand-ins for Magento framework classes (many namespaces in one file) so the unit tests run without
+         Magento; not shipped in the release ZIP and never a module file. -->
+    <exclude-pattern>./tests/Unit/magento-stubs.php</exclude-pattern>
 </ruleset>

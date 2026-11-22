@@ -5,6 +5,17 @@ All notable changes to `axitrace/module-tracking` are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-11-22
+
+### Added
+- **The store domain is verified at AxiTrace automatically.** AxiTrace accepts browser events (page views, add-to-cart, checkout) only from verified domains of the workspace; a store whose domain was never added in the AxiTrace panel lost all of them while server-side purchases still arrived. The module now asks AxiTrace (`POST https://axitrace.com/api/public/store-domains/claim`, one request per public key, with the secret key as HTTP Basic when set) to verify the base URL hosts of every active store view with tracking enabled. It does so when the AxiTrace configuration section is saved, once a day from cron (`axitrace_claim_store_domain`), on the first cron run after install or upgrade (`axitrace_claim_store_domain_first`) and from the new **Verify store domain** button.
+- New storefront route `GET /axitrace/domain/proof?nonce=...` that AxiTrace fetches to verify a host. It answers with the public key of the store view Magento resolves for the request and, with a secret key, an HMAC-SHA256 signature over the nonce, the host and the public key. It needs no session or login and is sent with `Cache-Control: no-store`. A firewall, WAF or maintenance mode that blocks this URL prevents the verification.
+- **Store domain verification** status in Stores > Configuration > AxiTrace > General: one plain sentence per storefront host (verified, pending, or what is wrong and how to fix it). The last answer is kept in the flag table (`axitrace_store_domain_status`).
+- For a local AxiTrace only: while Magento runs in **developer mode**, the environment variable `AXITRACE_DEV_ADMIN_BASE_URL` (a bare `http(s)://host[:port]` origin) replaces `https://axitrace.com` as the claim address. Production and default mode never read it.
+
+### Fixed
+- **The checkout no longer blocks an API base URL or tracking domain with a port.** The CSP collector added only the host (`api.example.com`), which a browser reads as the default port, so with `https://api.example.com:8443` the enforced checkout policy refused the SDK's requests and no `begin_checkout` or `add_payment_info` arrived. The port is now kept (`api.example.com:8443`). The default `https://stat.axitrace.com` was never affected.
+
 ## [0.4.2] - 2026-10-09
 
 ### Fixed

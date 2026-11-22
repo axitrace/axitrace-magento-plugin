@@ -25,7 +25,7 @@
             <tab>axitrace_tab</tab>
             <resource>AxiTrace_Tracking::config</resource>
 
-            <!--begin::General-->
+            <!-- General -->
             <group id="general" translate="label" sortOrder="10" showInDefault="1" showInWebsite="1" showInStore="1">
                 <label>General</label>
 
@@ -127,10 +127,23 @@
                         <field id="enabled">1</field>
                     </depends>
                 </field>
-            </group>
-            <!--end::General-->
 
-            <!--begin::Events-->
+                <field id="store_domain_status"
+                       translate="label comment"
+                       sortOrder="60"
+                       showInDefault="1"
+                       showInWebsite="1"
+                       showInStore="1">
+                    <label>Store domain verification</label>
+                    <frontend_model>AxiTrace\Tracking\Block\Adminhtml\System\Config\DomainVerificationStatus</frontend_model>
+                    <comment>AxiTrace accepts browser events (page views, add-to-cart, checkout) only from verified store domains. The base URL hosts of all store views are verified automatically when this configuration is saved and once a day; AxiTrace checks https://your-store/axitrace/domain/proof.</comment>
+                    <depends>
+                        <field id="enabled">1</field>
+                    </depends>
+                </field>
+            </group>
+
+            <!-- Events -->
             <group id="events" translate="label" sortOrder="20" showInDefault="1" showInWebsite="1" showInStore="1">
                 <label>Events</label>
 
@@ -176,9 +189,8 @@
                     <field id="axitrace/general/enabled">1</field>
                 </depends>
             </group>
-            <!--end::Events-->
 
-            <!--begin::Advanced-->
+            <!-- Advanced -->
             <group id="advanced" translate="label" sortOrder="30" showInDefault="1" showInWebsite="1" showInStore="1">
                 <label>Advanced</label>
 
@@ -196,7 +208,6 @@
                     <field id="axitrace/general/enabled">1</field>
                 </depends>
             </group>
-            <!--end::Advanced-->
 
         </section>
     </system>

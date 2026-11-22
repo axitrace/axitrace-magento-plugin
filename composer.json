@@ -1,9 +1,9 @@
 {
     "name": "axitrace/module-tracking",
-    "description": "AxiTrace server-side tracking for Magento 2 / Adobe Commerce — Facebook CAPI, TikTok Events API, Google Ads offline conversions, GA4. Free module; requires an AxiTrace SaaS account at axitrace.com.",
+    "description": "AxiTrace server-side tracking for Magento 2 / Adobe Commerce - Facebook CAPI, TikTok Events API, Google Ads offline conversions, GA4. Free module; requires an AxiTrace SaaS account at axitrace.com.",
     "type": "magento2-module",
     "license": "MIT",
-    "homepage": "https://axitrace.com/integrations/magento",
+    "homepage": "https://axitrace.com/integrations/magento/",
     "support": {
         "email": "info@axitrace.com",
         "docs": "https://axitrace.com/docs/integrations/magento",

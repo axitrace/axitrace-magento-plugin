@@ -8,7 +8,7 @@ client-side pixels you may also be running.
 
 The module itself is **free** under the MIT License. AxiTrace bills the SaaS
 that processes the forwarded events on
-[axitrace.com](https://axitrace.com/pricing) (Stripe). There is no module-level
+[axitrace.com](https://axitrace.com/pricing/) (Stripe). There is no module-level
 licence check or API call back to AxiTrace for billing purposes.
 
 - **Magento Open Source**: 2.4.6 / 2.4.7 / 2.4.8
@@ -54,7 +54,7 @@ to install with the Marketplace authentication keys from
 ## Configure (under 5 minutes)
 
 1. **Get your workspace public key**: sign in at
-   [axitrace.com/dashboard](https://axitrace.com/dashboard). Each workspace has
+   [axitrace.com/dashboard](https://axitrace.com/admin). Each workspace has
    a `pk_live_...` / `pk_test_...` key. Copy it.
 2. **Open the Magento admin** → **Stores → Configuration → AxiTrace**.
 3. **Enable AxiTrace tracking**: set to **Yes**.

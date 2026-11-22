@@ -63,8 +63,11 @@ class TrackingDomainPolicyCollector implements PolicyCollectorInterface
     }
 
     /**
-     * The bare host of a configured domain or URL ("stat.example.com",
-     * "https://stat.example.com/"), or null when there is none.
+     * The CSP host source of a configured domain or URL: its host
+     * ("stat.example.com", "https://stat.example.com/"), with the port when the
+     * value names one ("https://stat.example.com:8443" -> "stat.example.com:8443";
+     * a host source without a port allows only the scheme's default port, so the
+     * browser would block every request to that URL). Null when there is none.
      */
     private function host(string $value): ?string
     {
@@ -73,12 +76,15 @@ class TrackingDomainPolicyCollector implements PolicyCollectorInterface
             return null;
         }
 
-        $host = parse_url(str_contains($value, '://') ? $value : 'https://' . $value, PHP_URL_HOST);
+        $parts = parse_url(str_contains($value, '://') ? $value : 'https://' . $value);
+        $host = is_array($parts) ? ($parts['host'] ?? null) : null;
         if (!is_string($host) || $host === '' || preg_match('/^[a-z0-9.-]+$/i', $host) !== 1) {
             return null;
         }
 
-        return strtolower($host);
+        $port = isset($parts['port']) ? (int) $parts['port'] : null;
+
+        return strtolower($host) . ($port !== null && $port > 0 ? ':' . $port : '');
     }
 
     private function isStorefront(): bool

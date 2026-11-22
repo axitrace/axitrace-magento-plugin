@@ -109,6 +109,11 @@ namespace Magento\Framework {
 
                 return $result;
             }
+
+            public function __toString(): string
+            {
+                return $this->render();
+            }
         }
     }
 }
@@ -132,6 +137,12 @@ namespace Magento\Framework\Stdlib\DateTime {
             public function gmtDate($format = null, $input = null)
             {
                 return gmdate($format ?? 'Y-m-d H:i:s');
+            }
+
+            /** @return int */
+            public function gmtTimestamp($input = null)
+            {
+                return time();
             }
         }
     }
@@ -230,9 +241,18 @@ namespace Magento\Framework\App {
     if (!class_exists(State::class)) {
         class State
         {
+            public const MODE_DEFAULT = 'default';
+            public const MODE_DEVELOPER = 'developer';
+            public const MODE_PRODUCTION = 'production';
+
             public function getAreaCode(): string
             {
                 return 'frontend';
+            }
+
+            public function getMode(): string
+            {
+                return self::MODE_DEFAULT;
             }
         }
     }
@@ -308,6 +328,30 @@ namespace Magento\Store\Model {
         {
             /** @return \Magento\Store\Api\Data\StoreInterface */
             public function getStore($storeId = null);
+
+            /** @return \Magento\Store\Api\Data\StoreInterface[] */
+            public function getStores($withDefault = false, $codeKey = false);
+        }
+    }
+
+    if (!class_exists(Store::class)) {
+        class Store
+        {
+            public function getId()
+            {
+                return null;
+            }
+
+            public function getIsActive()
+            {
+                return 1;
+            }
+
+            /** @return string */
+            public function getBaseUrl($type = 'link', $secure = null)
+            {
+                return '';
+            }
         }
     }
 }
@@ -672,6 +716,97 @@ namespace AxiTrace\Tracking\Model\EventLog {
             public function create(array $data = []): EventLog
             {
                 return new EventLog();
+            }
+        }
+    }
+}
+
+namespace {
+    if (!function_exists('__')) {
+        function __(string $text, ...$arguments): \Magento\Framework\Phrase
+        {
+            return new \Magento\Framework\Phrase($text, $arguments);
+        }
+    }
+}
+
+namespace Magento\Framework {
+    if (!class_exists(FlagManager::class)) {
+        class FlagManager
+        {
+            /** @return mixed */
+            public function getFlagData($flagCode)
+            {
+                return null;
+            }
+
+            public function saveFlag($flagCode, $value)
+            {
+                return true;
+            }
+        }
+    }
+
+    if (!interface_exists(UrlInterface::class)) {
+        interface UrlInterface
+        {
+            public const URL_TYPE_LINK = 'link';
+            public const URL_TYPE_WEB  = 'web';
+        }
+    }
+}
+
+namespace Magento\Framework\App\Action {
+    if (!interface_exists(HttpGetActionInterface::class)) {
+        interface HttpGetActionInterface
+        {
+            public function execute();
+        }
+    }
+}
+
+namespace Magento\Framework\Controller\Result {
+    if (!class_exists(Json::class)) {
+        class Json
+        {
+            /** @var array<mixed> */
+            public array $stubData = [];
+
+            public int $stubCode = 200;
+
+            /** @var array<string, string> */
+            public array $stubHeaders = [];
+
+            public function setData($data, $cycleCheck = false, $options = [])
+            {
+                $this->stubData = $data;
+
+                return $this;
+            }
+
+            public function setHttpResponseCode($httpCode)
+            {
+                $this->stubCode = (int) $httpCode;
+
+                return $this;
+            }
+
+            public function setHeader($name, $value, $replace = false)
+            {
+                $this->stubHeaders[$name] = (string) $value;
+
+                return $this;
+            }
+        }
+    }
+
+    // Magento generates this factory at runtime.
+    if (!class_exists(JsonFactory::class)) {
+        class JsonFactory
+        {
+            public function create(array $data = []): Json
+            {
+                return new Json();
             }
         }
     }

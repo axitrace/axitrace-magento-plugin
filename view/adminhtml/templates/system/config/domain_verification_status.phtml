@@ -1,0 +1,65 @@
+<?php
+/**
+ * @var \AxiTrace\Tracking\Block\Adminhtml\System\Config\DomainVerificationStatus $block
+ */
+$htmlId = (string) $block->getData('html_id');
+$ajaxUrl = (string) $block->getData('ajax_url');
+$label = (string) $block->getData('button_label');
+$colors = ['success' => '#28a745', 'warning' => '#d4a017', 'error' => '#dc3545'];
+?>
+<div id="<?= $block->escapeHtmlAttr($htmlId) ?>_lines">
+    <?php foreach ($block->getStatusLines() as $line): ?>
+        <div style="margin-bottom:6px;color:<?= $block->escapeHtmlAttr($colors[$line['level']] ?? '#555') ?>">
+            <?= $block->escapeHtml($line['text']) ?>
+        </div>
+    <?php endforeach; ?>
+</div>
+<button type="button" id="<?= $block->escapeHtmlAttr($htmlId) ?>_btn" class="action-default scalable">
+    <span><?= $block->escapeHtml($label) ?></span>
+</button>
+<div id="<?= $block->escapeHtmlAttr($htmlId) ?>_status" style="margin-top:6px;font-size:12px;color:#555"></div>
+
+<script>
+    require(['jquery'], function ($) {
+        'use strict';
+        var colors = <?= /* @noEscape */ json_encode($colors, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+        var btn = document.getElementById('<?= $block->escapeJs($htmlId) ?>_btn');
+        var lines = document.getElementById('<?= $block->escapeJs($htmlId) ?>_lines');
+        var status = document.getElementById('<?= $block->escapeJs($htmlId) ?>_status');
+        if (!btn || !lines || !status) {
+            return;
+        }
+        btn.addEventListener('click', function () {
+            status.style.color = '#555';
+            status.textContent = '<?= $block->escapeJs(__('Verifying store domain...')) ?>';
+            btn.disabled = true;
+
+            $.ajax({
+                url: '<?= $block->escapeJs($ajaxUrl) ?>',
+                type: 'POST',
+                dataType: 'json',
+                data: {form_key: window.FORM_KEY || ''}
+            }).done(function (resp) {
+                if (resp && resp.lines) {
+                    lines.textContent = '';
+                    resp.lines.forEach(function (line) {
+                        var div = document.createElement('div');
+                        div.style.marginBottom = '6px';
+                        div.style.color = colors[line.level] || '#555';
+                        div.textContent = line.text;
+                        lines.appendChild(div);
+                    });
+                    status.textContent = '';
+                } else {
+                    status.style.color = '#dc3545';
+                    status.textContent = '<?= $block->escapeJs(__('The store domain could not be verified. Please try again.')) ?>';
+                }
+            }).fail(function () {
+                status.style.color = '#dc3545';
+                status.textContent = '<?= $block->escapeJs(__('The store domain could not be verified. Please try again.')) ?>';
+            }).always(function () {
+                btn.disabled = false;
+            });
+        });
+    });
+</script>

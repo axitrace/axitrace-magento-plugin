@@ -101,6 +101,24 @@ class ModuleConfig
     }
 
     /**
+     * Returns the decrypted secret key for the store domain proof and claim, or ''.
+     *
+     * Unlike getSecretKey(), this does not depend on the API base URL: the key only
+     * signs the domain proof (it never leaves the store in the proof) and goes as
+     * HTTP Basic credentials to the fixed https claim URL on axitrace.com.
+     */
+    public function getDomainProofSecretKey(?int $storeId = null): string
+    {
+        $cipher = (string) $this->scopeConfig->getValue(
+            self::XML_PATH_SECRET_KEY,
+            ScopeInterface::SCOPE_STORE,
+            $storeId
+        );
+
+        return $cipher === '' ? '' : trim((string) $this->encryptor->decrypt($cipher));
+    }
+
+    /**
      * True when the API base URL for the store view uses https, the only scheme the
      * secret key may travel over.
      */

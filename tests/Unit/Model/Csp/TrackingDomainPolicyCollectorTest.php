@@ -45,6 +45,17 @@ class TrackingDomainPolicyCollectorTest extends TestCase
         self::assertSame(['existing'], $this->collector(true, 'stat.shop.example', 'https://stat.axitrace.com', 'adminhtml')->collect(['existing']));
     }
 
+    public function testKeepsTheConfiguredPortOfTheApiBaseUrlAndTrackingDomain(): void
+    {
+        // A host source without a port allows only the default port: http://api.shop.example:8080 would be blocked.
+        $policies = $this->collector(true, 'stat.shop.example:8443', 'http://api.shop.example:8080')->collect();
+
+        self::assertSame(
+            ['script-src' => ['stat.shop.example:8443'], 'connect-src' => ['stat.shop.example:8443', 'api.shop.example:8080']],
+            $this->hosts($policies)
+        );
+    }
+
     public function testIgnoresAMalformedDomain(): void
     {
         $policies = $this->collector(true, 'bad host"; script-src *', 'https://stat.axitrace.com')->collect();
