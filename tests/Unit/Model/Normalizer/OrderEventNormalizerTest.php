@@ -56,7 +56,7 @@ class OrderEventNormalizerTest extends TestCase
     {
         $event = $this->normalizeWith(null);
 
-        self::assertSame('0.5.0', $event['pluginVersion']);
+        self::assertSame('0.5.1', $event['pluginVersion']);
     }
 
     public function testBrowserIdentityLinksThePurchaseToTheVisitor(): void

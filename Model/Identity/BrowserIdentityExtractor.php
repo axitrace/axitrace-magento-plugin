@@ -92,11 +92,18 @@ class BrowserIdentityExtractor
     /** AxiTrace visitor/session cookies (vt_vid, vt_sid): UUIDs written by the web SDK. */
     private const AXITRACE_ID_PATTERN = '/^[A-Za-z0-9_-]{8,64}$/';
 
-    /** Meta browser id: fb.<subdomainIndex>.<creationTimeMs>.<random>. */
-    private const FBP_PATTERN = '/^fb\.\d+\.\d+\.\d+$/';
+    /**
+     * Optional 5th part of _fbp/_fbc written by Meta's Conversions API Parameter Builder:
+     * 8 base64url characters starting with "AQ", or a legacy 2-character language token.
+     * The cookie is forwarded with it, unchanged. Mirrors MetaCookie in event-worker.
+     */
+    private const META_APPENDIX = '(?:\.(?:AQ[A-Za-z0-9_-]{6}|AQ|Ag|Aw|BA|BQ|Bg))?';
 
-    /** Meta click id cookie: fb.<subdomainIndex>.<creationTimeMs>.<fbclid>. */
-    private const FBC_PATTERN = '/^fb\.\d+\.\d+\.[A-Za-z0-9_-]+$/';
+    /** Meta browser id: fb.<subdomainIndex>.<creationTimeMs>.<random>[.<appendix>]. */
+    private const FBP_PATTERN = '/^fb\.\d+\.\d+\.\d+' . self::META_APPENDIX . '$/';
+
+    /** Meta click id cookie: fb.<subdomainIndex>.<creationTimeMs>.<fbclid>[.<appendix>]. */
+    private const FBC_PATTERN = '/^fb\.\d+\.\d+\.[A-Za-z0-9_-]+' . self::META_APPENDIX . '$/';
 
     /** TikTok browser id, e.g. "01KCFX1BV9NB74R5ZE592YDTYN_.tt.1". */
     private const TTP_PATTERN = '/^[A-Za-z0-9_.-]{8,128}$/';

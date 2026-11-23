@@ -114,6 +114,36 @@ class BrowserIdentityExtractorTest extends TestCase
     }
 
     /**
+     * Meta cookies with and without the Conversions API Parameter Builder appendix.
+     *
+     * @return array<string, array{0: string, 1: string, 2: bool}>
+     */
+    public static function metaCookies(): array
+    {
+        return [
+            'fbp classic'                => ['_fbp', 'fb.1.1700000000000.1234567890', true],
+            'fbp with appendix'          => ['_fbp', 'fb.1.1795352499951.528934908378289257.AQEAAQMC', true],
+            'fbp with legacy appendix'   => ['_fbp', 'fb.1.1700000000000.1234567890.Bg', true],
+            'fbp with unknown appendix'  => ['_fbp', 'fb.1.1700000000000.1234567890.ZZZZZZZZ', false],
+            'fbp with six parts'         => ['_fbp', 'fb.1.1700000000000.1234567890.AQEAAQMC.AQ', false],
+            'fbc classic'                => ['_fbc', 'fb.1.1700000000000.AbCdEfGh_123-xyz', true],
+            'fbc with appendix'          => ['_fbc', 'fb.1.1700000000000.AbCdEfGh_123-xyz.AQYCAQMC', true],
+            'fbc with text after the id' => ['_fbc', 'fb.1.1700000000000.AbCdEfGh_123-xyz extra', false],
+        ];
+    }
+
+    /**
+     * @dataProvider metaCookies
+     */
+    #[\PHPUnit\Framework\Attributes\DataProvider('metaCookies')]
+    public function testMetaCookiesWithAndWithoutAppendix(string $cookie, string $value, bool $kept): void
+    {
+        $key = ltrim($cookie, '_');
+
+        self::assertSame($kept ? $value : null, $this->extract([$cookie => $value])->toArray()[$key] ?? null);
+    }
+
+    /**
      * The five click ids added in web SDK 0.24.0: key, SDK cookie, max age, a realistic id.
      *
      * @return array<string, array{0: string, 1: string, 2: int, 3: string}>
